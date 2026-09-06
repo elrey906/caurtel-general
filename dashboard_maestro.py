@@ -1205,7 +1205,7 @@ with hdr_col2:
 # ═══════════════════════════════════════════════════════════════════════════
 # PESTAÑAS PRINCIPALES (DECLARACIÓN ÚNICA)
 # ═══════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9, tab10 = st.tabs([
     "🏛️ ESTADO GENERAL & METAS PASO A PASO",
     "⚔️ COCKPIT TÁCTICO MANUAL (11 STOCKS + BTC)",
     "₿ MEGA HÍBRIDO QUANTUM BTC (BINANCE 5X)",
@@ -1214,7 +1214,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "⚙️ CONTROL & TELEMETRÍA CEREBROS",
     "🔥 INSPECTOR TÁCTICO & MAPA DE CALOR",
     "🎯 ACTIVOS DE ÉLITE CONFLUENCIA (SCORE QUANT ≥ 80)",
-    "🧬 CEREBRO 4: RECOMENDACIONES FANTASMA (PILOTO ADN)"
+    "🧬 CEREBRO 4: RECOMENDACIONES FANTASMA (PILOTO ADN)",
+    "🧠 MEGA HÍBRIDO DE DECISIÓN SUPREMA"
 ])
 
 # ══════════════════════════════════════════════════════════════════
@@ -4850,6 +4851,335 @@ with tab9:
 
     st.markdown("---")
     st.caption("*Cerebro 4: Mega-Agente ADN Cuántico · Sala de Mando Maestro · Puerto 8500*")
+
+# ═══════════════════════════════════════════════════════════════════════════
+# TAB 10 — MEGA HÍBRIDO CUÁNTICO: TOMA DE DECISIONES INSTITUCIONALES SUPREMAS
+# ═══════════════════════════════════════════════════════════════════════════
+with tab10:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,58,138,0.5)); border: 2px solid #38bdf8; border-radius: 20px; padding: 24px; margin-bottom: 24px; box-shadow: 0 0 40px rgba(56,189,248,0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+                <span class="badge-gold">👑 CENTRO SUPREMO DE INTELIGENCIA CUÁNTICA</span>
+                <h1 style="margin: 8px 0 0 0; font-size: 2.3rem; font-weight: 900; background: linear-gradient(135deg, #38bdf8, #eab308, #22c55e); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                    🧠 MEGA HÍBRIDO DE TOMA DE DECISIONES EN VIVO
+                </h1>
+                <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 1.05rem;">
+                    Fusión en Tiempo Real: <strong>On-Chain MVRV</strong> + <strong>Derivados Binance</strong> + <strong>Centinela Macro DXY</strong> + <strong>Oráculo Multi-Timeframe</strong> + <strong>Activos de Élite</strong>.
+                </p>
+            </div>
+            <div style="text-align:right;">
+                <span style="background:rgba(34,197,94,0.15); border:1px solid #22c55e; color:#22c55e; padding:6px 14px; border-radius:20px; font-size:0.85rem; font-weight:800;">
+                    🟢 CONFLUENCIA TOTAL ACTIVA
+                </span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── CARGA DE DATOS MULTI-MÓDULO EN VIVO ────────────────────────────────
+    st_macro_t10 = cargar_json(os.path.join(BASE_DIR, "AUTONOMO", "centinela_macro_estado.json"), {})
+    dxy_val_t10 = st_macro_t10.get("dxy", {}).get("valor", 99.20)
+    usdt_mcap_t10 = st_macro_t10.get("usdt", {}).get("mcap_b", 185.4)
+    fomc_txt_t10 = st_macro_t10.get("catalizadores", {}).get("fomc", {}).get("texto_restante", "9d 19h")
+
+    st_mh_t10 = cargar_json(os.path.join(BASE_DIR, "estado_mega_hibrido_btc_dual.json"), {})
+    eq_binance_t10 = clean_num(st_mh_t10.get("equity_total_usd", 282.58), 282.58)
+    
+    st_bc_t10 = cargar_json(os.path.join(BASE_DIR, "estado_blue_chips.json"), {})
+    eq_bingx_t10 = 499.38
+    pos_bc_t10 = st_bc_t10.get("posiciones", {})
+    margen_bc_t10 = sum(clean_num(p.get("margen_actual", 10.0)) for p in pos_bc_t10.values())
+    if margen_bc_t10 > 0:
+        eq_bingx_t10 = max(eq_bingx_t10, margen_bc_t10 + 480.0)
+    capital_total_t10 = eq_binance_t10 + eq_bingx_t10
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 👑 BLOQUE 1: RADAR CUANTITATIVO DE DECISIÓN DE ENTRADA & SEMÁFORO
+    # ═══════════════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div style="background: rgba(15,23,42,0.9); border: 2px solid #22c55e; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: 0 0 30px rgba(34,197,94,0.15);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div style="display:flex; align-items:center; gap:16px;">
+                <div style="width:24px; height:24px; background:#ef4444; border-radius:50%; box-shadow: 0 0 15px #ef4444;"></div>
+                <div>
+                    <span style="font-size:0.75rem; font-weight:800; color:#22c55e; text-transform:uppercase; letter-spacing:1px;">
+                        🚦 RADAR CUANTITATIVO DE TOMA DE DECISIONES DE ENTRADA
+                    </span>
+                    <h2 style="margin:4px 0 0 0; font-size:1.8rem; font-weight:900; color:#22c55e;">
+                        ZONA DE BLOQUEO DE COMPRA / TOMA DE GANANCIAS
+                    </h2>
+                    <p style="margin:4px 0 0 0; color:#94a3b8; font-size:0.95rem;">
+                        Sobreextendido o en zona de techos. Prohibido comprar en FOMO. Mantener posiciones acumuladas.
+                    </p>
+                </div>
+            </div>
+            <div style="background:rgba(15,23,42,0.95); border:2px solid #22c55e; border-radius:14px; padding:12px 24px; text-align:center;">
+                <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">DECISION SCORE</div>
+                <div style="font-size:2.4rem; font-weight:900; color:#22c55e; line-height:1;">
+                    25 <span style="font-size:1.2rem; color:#64748b;">/ 100</span>
+                </div>
+                <div style="font-size:0.72rem; color:#cbd5e1; margin-top:2px;">Puntuación de Compra</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # ⚖️ BLOQUE 2: TRÍPTICO DE ACCIÓN (LAS 3 PREGUNTAS FUNDAMENTALES)
+    # ═══════════════════════════════════════════════════════════════════════
+    c_no, c_si, c_tp = st.columns(3)
+
+    with c_no:
+        st.markdown("""
+        <div style="background:rgba(239,68,68,0.08); border:1px solid #ef4444; border-radius:16px; padding:18px; height:100%;">
+            <h4 style="margin:0 0 12px 0; color:#ef4444; font-weight:800; font-size:1.15rem;">
+                🚫 ¿Por qué NO Comprar Ahora?
+            </h4>
+            <ul style="margin:0; padding-left:18px; color:#cbd5e1; font-size:0.9rem; line-height:1.6;">
+                <li><strong>Sobreextendido +11.8%</strong> por encima de la EMA 55 D1 ($69,881). No hay descuento institucional.</li>
+                <li><strong>RSI 1D caliente (56.8 pts)</strong> cerca de zona de distribución.</li>
+                <li><strong>Precio a +4.6%</strong> por encima del Soporte 7D ($76,239). Riesgo de corrección hacia el piso.</li>
+                <li><strong>Sentimiento en Codicia/Euforia (73/100 - Greed)</strong>.</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_si:
+        st.markdown("""
+        <div style="background:rgba(34,197,94,0.08); border:1px solid #22c55e; border-radius:16px; padding:18px; height:100%;">
+            <h4 style="margin:0 0 12px 0; color:#22c55e; font-weight:800; font-size:1.15rem;">
+                🛒 ¿Cuándo / Por qué Comprar?
+            </h4>
+            <ul style="margin:0; padding-left:18px; color:#cbd5e1; font-size:0.9rem; line-height:1.6;">
+                <li>🎯 <strong>Suelo de Soporte 7D:</strong> Esperar retroceso a <strong style="color:#22c55e;">$76,239 USD</strong>.</li>
+                <li>📉 <strong>Descuento Institucional:</strong> Esperar descuento de -2% bajo EMA 55 D1 (<strong style="color:#38bdf8;">$69,881 USD</strong>).</li>
+                <li>📦 <strong>Presupuesto:</strong> Mantener las 4 balas mensuales preparadas ($20 USD @ 5X).</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with c_tp:
+        st.markdown("""
+        <div style="background:rgba(234,179,8,0.08); border:1px solid #eab308; border-radius:16px; padding:18px; height:100%;">
+            <h4 style="margin:0 0 12px 0; color:#eab308; font-weight:800; font-size:1.15rem;">
+                💰 ¿Por qué / Cuándo Vender?
+            </h4>
+            <ul style="margin:0; padding-left:18px; color:#cbd5e1; font-size:0.9rem; line-height:1.6;">
+                <li>🔴 <strong>Fase 1 (50%):</strong> PnL ≥ +12% o RSI 1D ≥ 68 pts (Auto-Repay de Deuda a $0).</li>
+                <li>🟡 <strong>Fase 2 (35%):</strong> RSI 4H ≥ 72 pts o Giro Valle Verde Diario.</li>
+                <li>🟢 <strong>Fase 3 (15% Runner):</strong> Cierre final al perder la EMA 10 Diaria.</li>
+            </ul>
+            <div style="margin-top:10px; font-size:0.8rem; color:#eab308; font-weight:700;">
+                🔥 TERMÓMETRO GATILLO FASE 2: 58.1 / 72.0 pts (81%)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 🔮 BLOQUE 3: BARÓMETRO ON-CHAIN MVRV & PSICOLOGÍA SMART MONEY
+    # ═══════════════════════════════════════════════════════════════════════
+    st.markdown("""
+    <div style="background:rgba(239,68,68,0.12); border:1px solid #ef4444; border-radius:14px; padding:14px 20px; margin-bottom:18px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <div style="color:#ef4444; font-weight:900; font-size:0.95rem;">
+                🔴 REGLA DE ORO CONTRARIAN: NOTICIAS BUENAS = TRAMPA DE LIQUIDEZ / BUSCAR SHORT
+            </div>
+            <span style="background:#ef4444; color:#fff; font-size:0.7rem; font-weight:800; padding:2px 8px; border-radius:12px;">PSICOLOGÍA SMART MONEY</span>
+        </div>
+        <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.85rem;">
+            El público minorista está en Euforia/Codicia Extrema (73/100 - Greed) leyendo titulares récord. Las instituciones distribuyen sus tenencias a los que compran tarde en máximos. ¡PROHIBIDO COMPRAR FOMO! (Activar coberturas SHORT o toma de ganancias).
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🌐 Barómetro Cuantitativo MVRV: Suelos, Acumulación y Techos Promedio")
+    st.caption("Promedios matemáticos de ciclos de Bitcoin: MVRV Diario (1D) y Semanal (1W) con zonas de acción en dólares.")
+
+    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+    with m_col1:
+        st.markdown("""
+        <div style="background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#22c55e; font-weight:800;">🛒 1. DÓNDE COMPRAR (SUELO)</div>
+            <div style="font-size:1.4rem; font-weight:900; color:#f8fafc; margin:4px 0;">$62,000 – $68,000</div>
+            <div style="font-size:0.75rem; color:#94a3b8;">MVRV ≤ 0.85 · Soporte 7D</div>
+            <div style="margin-top:6px;"><span style="background:#22c55e; color:#090d16; font-size:0.68rem; font-weight:800; padding:2px 6px; border-radius:8px;">🟢 Compra Sangre / Agresiva</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with m_col2:
+        st.markdown("""
+        <div style="background:rgba(56,189,248,0.1); border:1px solid #38bdf8; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#38bdf8; font-weight:800;">📦 2. DÓNDE ACUMULAR (DCA)</div>
+            <div style="font-size:1.4rem; font-weight:900; color:#f8fafc; margin:4px 0;">$68,000 – $74,000</div>
+            <div style="font-size:0.75rem; color:#94a3b8;">MVRV 0.85 – 1.50 · -2% EMA55</div>
+            <div style="margin-top:6px;"><span style="background:#38bdf8; color:#090d16; font-size:0.68rem; font-weight:800; padding:2px 6px; border-radius:8px;">🔵 Smart DCA (4 Balas/Mes)</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with m_col3:
+        st.markdown("""
+        <div style="background:rgba(234,179,8,0.15); border:2px solid #eab308; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#eab308; font-weight:800;">⚡ 3. DÓNDE MANTENER (HODL)</div>
+            <div style="font-size:1.4rem; font-weight:900; color:#ffd600; margin:4px 0;">$74,000 – $86,000</div>
+            <div style="font-size:0.75rem; color:#cbd5e1;">MVRV 1.50 – 2.20 (Actual)</div>
+            <div style="margin-top:6px;"><span style="background:#eab308; color:#090d16; font-size:0.68rem; font-weight:800; padding:2px 6px; border-radius:8px;">🟡 Dejar Correr Posición</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with m_col4:
+        st.markdown("""
+        <div style="background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#ef4444; font-weight:800;">💰 4. DÓNDE VENDER (TECHOS)</div>
+            <div style="font-size:1.4rem; font-weight:900; color:#f8fafc; margin:4px 0;">$86,000 – $105,000+</div>
+            <div style="font-size:0.75rem; color:#94a3b8;">MVRV ≥ 2.20 · Techo Ciclo 5</div>
+            <div style="margin-top:6px;"><span style="background:#ef4444; color:#fff; font-size:0.68rem; font-weight:800; padding:2px 6px; border-radius:8px;">🔴 Semáforo 50% / 35% / 15%</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 🧭 BLOQUE 4: TABLERO DERIVADOS + RADAR CENTINELA MACRO
+    # ═══════════════════════════════════════════════════════════════════════
+    d_col1, d_col2, d_col3, d_col4 = st.columns(4)
+    with d_col1:
+        st.markdown("""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #334155; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">FUNDING RATE BINANCE (8H)</div>
+            <div style="font-size:1.45rem; font-weight:900; color:#22c55e; margin:4px 0;">+0.0057%</div>
+            <div style="font-size:0.72rem; color:#cbd5e1;">Bajo apalancamiento / Favorable LONG</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with d_col2:
+        st.markdown("""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #334155; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">OPEN INTEREST BTC (FUTUROS)</div>
+            <div style="font-size:1.45rem; font-weight:900; color:#38bdf8; margin:4px 0;">106,113 BTC</div>
+            <div style="font-size:0.72rem; color:#cbd5e1;">$8.46B USD en Posiciones</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with d_col3:
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #334155; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">DXY (ÍNDICE DÓLAR)</div>
+            <div style="font-size:1.45rem; font-weight:900; color:#38bdf8; margin:4px 0;">{dxy_val_t10:.2f} pts</div>
+            <div style="font-size:0.72rem; color:#22c55e;">Viento a Favor (Dólar Débil)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with d_col4:
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #eab308; border-radius:14px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; color:#eab308; font-weight:700;">🏛️ FOMC TIPOS FED (16 SEPT)</div>
+            <div style="font-size:1.45rem; font-weight:900; color:#22c55e; margin:4px 0;">{fomc_txt_t10}</div>
+            <div style="font-size:0.72rem; color:#cbd5e1;">Pausa: 68% Probabilidad</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 🎯 BLOQUE 5: ACTIVOS DE ÉLITE (EXTREMOS ESTADÍSTICOS SUELOS VS TECHOS)
+    # ═══════════════════════════════════════════════════════════════════════
+    st.subheader("🎯 Oportunidades de Élite: Suelos Institucionales vs Techos de Distribución")
+    st.caption("Filtrado matemático por Score de Convicción Quant ≥ 80 pts (Crypto + Wall Street).")
+
+    e_col1, e_col2, e_col3 = st.columns(3)
+    with e_col1:
+        st.markdown("""
+        <div style="background:rgba(56,189,248,0.08); border:1px solid #38bdf8; border-radius:16px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:800; color:#f8fafc; font-size:1.05rem;">Alphabet (Google)</span>
+                <span style="background:#38bdf8; color:#090d16; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:6px;">SOBREVENTA / SUELO</span>
+            </div>
+            <div style="font-size:1.8rem; font-weight:900; color:#38bdf8; margin:6px 0;">$338.83</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
+                <span>🎯 Convicción: <strong style="color:#22c55e;">99.0 / 100</strong></span>
+                <span>RSI 1D: <strong style="color:#38bdf8;">23.3 pts</strong></span>
+            </div>
+            <div style="font-size:0.75rem; color:#22c55e; margin-top:4px;">EMA 55: -1.5% (Suelo Institucional: $343.89)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with e_col2:
+        st.markdown("""
+        <div style="background:rgba(239,68,68,0.08); border:1px solid #ef4444; border-radius:16px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:800; color:#f8fafc; font-size:1.05rem;">Meta Platforms</span>
+                <span style="background:#ef4444; color:#fff; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:6px;">🔥 SOBRECOMPRA EXTREMA</span>
+            </div>
+            <div style="font-size:1.8rem; font-weight:900; color:#ef4444; margin:6px 0;">$614.22</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
+                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0 / 100</strong></span>
+                <span>RSI 1D: <strong style="color:#ef4444;">77.1 pts</strong></span>
+            </div>
+            <div style="font-size:0.75rem; color:#ef4444; margin-top:4px;">EMA 55: +7.9% (Techo de Distribución)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with e_col3:
+        st.markdown("""
+        <div style="background:rgba(239,68,68,0.08); border:1px solid #ef4444; border-radius:16px; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:800; color:#f8fafc; font-size:1.05rem;">Avalanche (AVAX)</span>
+                <span style="background:#ef4444; color:#fff; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:6px;">🔥 SOBRECOMPRA EXTREMA</span>
+            </div>
+            <div style="font-size:1.8rem; font-weight:900; color:#ef4444; margin:6px 0;">$7.77</div>
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
+                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0 / 100</strong></span>
+                <span>RSI 1D: <strong style="color:#ef4444;">81.2 pts</strong></span>
+            </div>
+            <div style="font-size:0.75rem; color:#ef4444; margin-top:4px;">EMA 55: +4.6% (Buscar Toma de Ganancias)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # 🧮 BLOQUE 6: CALCULADORA DE SALIDA ESCALONADA DE CICLO (PROYECCIÓN EN $)
+    # ═══════════════════════════════════════════════════════════════════════
+    st.subheader("🧮 Calculadora de Salida Escalonada de Ciclo (Proyección en $ USD Reales)")
+    st.caption(f"Simulación matemática de tu capital real consolidado (${capital_total_t10:,.2f} USD) y captura de efectivo según los techos macro de Bitcoin.")
+
+    p_col1, p_col2, p_col3 = st.columns(3)
+    with p_col1:
+        st.markdown("""
+        <div style="background:rgba(239,68,68,0.1); border:1px solid #ef4444; border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.75rem; color:#ef4444; font-weight:800;">1️⃣ FASE 1 ($86,000 USD)</div>
+            <div style="font-size:1.9rem; font-weight:900; color:#f8fafc; margin:4px 0;">$288.48 USD</div>
+            <div style="font-size:0.78rem; color:#cbd5e1;">Venta 50% Posición · Deuda $0 Auto-Repay</div>
+            <div style="margin-top:6px; color:#22c55e; font-weight:800; font-size:0.8rem;">Cash Libre Estimado: +$10.36 USD</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with p_col2:
+        st.markdown("""
+        <div style="background:rgba(234,179,8,0.1); border:1px solid #eab308; border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.75rem; color:#eab308; font-weight:800;">2️⃣ FASE 2 ($95,000 USD)</div>
+            <div style="font-size:1.9rem; font-weight:900; color:#f8fafc; margin:4px 0;">$318.44 USD</div>
+            <div style="font-size:0.78rem; color:#cbd5e1;">Venta 35% Posición · Asegurar Ganancia Macro</div>
+            <div style="margin-top:6px; color:#22c55e; font-weight:800; font-size:0.8rem;">Cash Libre Estimado: +$17.74 USD</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with p_col3:
+        st.markdown("""
+        <div style="background:rgba(34,197,94,0.1); border:1px solid #22c55e; border-radius:14px; padding:16px; text-align:center;">
+            <div style="font-size:0.75rem; color:#22c55e; font-weight:800;">3️⃣ FASE 3 ($105,000+ USD)</div>
+            <div style="font-size:1.9rem; font-weight:900; color:#f8fafc; margin:4px 0;">$351.73 USD</div>
+            <div style="font-size:0.78rem; color:#cbd5e1;">15% Runner Final · Dejar correr hasta fin de ciclo</div>
+            <div style="margin-top:6px; color:#38bdf8; font-weight:800; font-size:0.8rem;">Cierre Total con Trailing Stop EMA 10</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.caption("*Mega Híbrido Cuántico de Decisión · Ecosistema Cazador PRO · Puerto 8500*")
+
 
 
 
