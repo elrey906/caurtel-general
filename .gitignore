@@ -1,0 +1,84 @@
+# ==============================================================================
+# 🛡️ BLINDAJE DE SEGURIDAD ABSOLUTA - CAZADOR PRO 2027
+# Queda TERMINANTEMENTE PROHIBIDO subir credenciales, APIs, secretos o logs a Git.
+# ==============================================================================
+
+# 1. Credenciales y Secretos Críticos
+.env
+.env.*
+!.env.example
+*.env
+*.env.local
+*.env.production
+bot_credentials.json
+credentials.json
+secrets.toml
+*.pem
+*.key
+*.cert
+
+# 2. Entornos Virtuales y Dependencias Locales
+venv*/
+env*/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 3. Logs y Archivos de Telemetría Operativa
+*.log
+LOGS/
+*.log.*
+logs/
+*.pid
+
+# 4. Archivos de Enlace Remoto y URLs Privadas
+*ENLACE*.txt
+ENLACE_MOVIL.txt
+ENLACE_CAZADOR_MOVIL.txt
+ENLACE_PARLEY_MOVIL.txt
+
+# 5. Estados y Datos Dinámicos Locales (Evita filtrar saldos/trades en el código)
+estado_*.json
+telemetria_*.json
+comandos_manuales.json
+*.sqlite
+*.db
+
+# 6. Datos de Velas Grandes / Archivos Temporales
+VELAS/
+DATOS/VELAS/
+*.csv
+
+# 7. IDEs, Editores y Sistema Operativo
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+*.desktop
+
+# 8. Backups y Archivos Huérfanos
+*backup*
+*old*
+*temp*
+*.swp
+*.swo

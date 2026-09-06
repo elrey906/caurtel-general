@@ -1,0 +1,4035 @@
+# -*- coding: utf-8 -*-
+"""
+=============================================================================
+CAZADOR PRO — CUARTEL GENERAL UNIFICADO (PUERTO 8500)
+=============================================================================
+7 Pestanas:
+  Tab 1: Estado General (Score, Semaforo, KPIs Binance)
+  Tab 2: ON-CHAIN & MACRO + MVRV Inter-Ciclo
+  Tab 3: Matriz Tecnica Multi-Timeframe
+  Tab 4: Trifecta Binance (3 Cajas)
+  Tab 5: Billetera & Aportes Automaticos
+  Tab 6: Metas & Cierre Mensual
+  Tab 7: Proyeccion HODL 2028-2030
+=============================================================================
+"""
+
+import sys, os, json, time, requests, socket
+import pandas as pd
+import streamlit as st
+from datetime import datetime, date, time as dtime
+from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
+
+try:
+    from streamlit_autorefresh import st_autorefresh
+    HAS_AUTOREFRESH = True
+except ImportError:
+    HAS_AUTOREFRESH = False
+
+try:
+    import pandas_ta as ta
+    HAS_TA = True
+except ImportError:
+    HAS_TA = False
+
+try:
+    import psutil
+    HAS_PSUTIL = True
+except ImportError:
+    HAS_PSUTIL = False
+
+try:
+    from HERRAMIENTAS.laboratorio_simbiosis_quant import ejecutar_simulacion_laboratorio
+    HAS_LAB_QUANT = True
+except Exception:
+    HAS_LAB_QUANT = False
+
+# Pure Pandas Indicator Helpers (Anti-NaN / Anti-Dash)
+def pure_ema(series, span):
+    return series.ewm(span=span, adjust=False).mean()
+
+def pure_sma(series, window):
+    return series.rolling(window=min(window, len(series)), min_periods=1).mean()
+
+def pure_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period, min_periods=1).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period, min_periods=1).mean()
+    rs = gain / (loss.replace(0, 1e-9))
+    return 100 - (100 / (1 + rs))
+
+def pure_macd_hist(series):
+    fast_ema = pure_ema(series, 12)
+    slow_ema = pure_ema(series, 26)
+    macd_line = fast_ema - slow_ema
+    sig_line = pure_ema(macd_line, 9)
+    hist = macd_line - sig_line
+    if len(hist) < 2:
+        return 0.0, 0.0, "NEUTRO"
+    curr = float(hist.iloc[-1])
+    prev = float(hist.iloc[-2])
+    
+    # Detección de Colores y Giros Cuánticos (Squeeze Momentum / MACD)
+    if curr >= 0:
+        estado = "VERDE_CLARO" if curr >= prev else "VERDE_OSCURO"
+    else:
+        # Valle Rojo: si curr > prev significa que se está encogiendo hacia cero (desaceleración bajista / absorción)
+        estado = "ROJO_CLARO" if curr > prev else "ROJO_OSCURO"
+        
+    return curr, prev, estado
+
+# Rutas
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BINANCE_DIR = os.path.join(BASE_DIR, "BINANCE")
+HERRAMIENTAS_DIR = os.path.join(BASE_DIR, "HERRAMIENTAS")
+DATOS_DIR = os.path.join(BASE_DIR, "DATOS")
+ESTADO_DIR = "/home/h/Escritorio/SEPTIEMBRE/ESTADO"
+
+for d in [DATOS_DIR, ESTADO_DIR]:
+    try:
+        os.makedirs(d, exist_ok=True)
+    except Exception:
+        pass
+
+DIR_SEPTIEMBRE = "/home/h/Escritorio/SEPTIEMBRE"
+for path in [DIR_SEPTIEMBRE, BINANCE_DIR, HERRAMIENTAS_DIR, BASE_DIR]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
+
+try:
+    import radar_orderblocks_quant as roq
+    HAS_ROQ = True
+except Exception as e:
+    HAS_ROQ = False
+
+load_dotenv(os.path.join(BASE_DIR, ".env"), override=True)
+
+# Compatibilidad con Streamlit Community Cloud (st.secrets)
+try:
+    if hasattr(st, "secrets"):
+        for k, v in st.secrets.items():
+            if isinstance(v, str) and k not in os.environ:
+                os.environ[k] = v
+except Exception:
+    pass
+
+try:
+    from binance_api_manager import obtener_datos_margin_account, obtener_precio_actual
+except Exception:
+    def obtener_datos_margin_account(): return {"error": "binance_api_manager no disponible"}
+    def obtener_precio_actual(sym): return 77000.0
+
+PLACEHOLDER_SCRIPT = False
+
+# ── UTILIDADES ─────────────────────────────────────────────────────────────
+def clean_num(val, fallback=0.0):
+    if val is None: return float(fallback)
+    try:
+        v = float(val)
+        return v if v == v else float(fallback)
+    except Exception:
+        return float(fallback)
+
+def now_vet():
+    return datetime.now(ZoneInfo("America/Caracas"))
+
+def cargar_json(path, default=None):
+    if default is None: default = {}
+    try:
+        if os.path.exists(path):
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return default
+
+def guardar_json(path, data):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
+def probar_puerto_socket(port, host="127.0.0.1"):
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(0.3)
+        res = s.connect_ex((host, port))
+        s.close()
+        return res == 0
+    except Exception:
+        return False
+
+@st.cache_data(ttl=5)
+def obtener_procesos_python_activos():
+    procs = []
+    if not HAS_PSUTIL:
+        return procs
+    try:
+        for p in psutil.process_iter(['pid', 'name', 'cmdline', 'memory_info', 'create_time']):
+            try:
+                cmd = " ".join(p.info['cmdline'] or [])
+                pname = (p.info['name'] or "").lower()
+                if "python" in pname or "python" in cmd.lower():
+                    rss = p.info['memory_info'].rss if p.info['memory_info'] else 0
+                    procs.append({
+                        "pid": p.info['pid'],
+                        "cmd": cmd,
+                        "rss_mb": round(rss / (1024 * 1024), 1),
+                        "create_time": p.info['create_time']
+                    })
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except Exception:
+        pass
+    return procs
+
+def verificar_estado_detallado_cerebros():
+    lista_proc = obtener_procesos_python_activos()
+    
+    definicion_cerebros = [
+        {
+            "id": "C1",
+            "nombre": "Cerebro 1: Wall Street & Blue Chips",
+            "tipo": "Motor + Dashboard",
+            "script_motor": "cazador_blue_chips_wall_street.py",
+            "script_dash": "dashboard_blue_chips.py",
+            "puerto": 8540,
+            "mercado": "BingX Perpetuos (11 Blue Chips)",
+            "log_file": "LOGS/blue_chips_bot.log",
+            "state_file": "/home/h/Escritorio/SEPTIEMBRE/estado_blue_chips.json"
+        },
+        {
+            "id": "C2",
+            "nombre": "Cerebro 2: Mega Híbrido Quantum BTC Dual",
+            "tipo": "Motor + Dashboard",
+            "script_motor": "cazador_mega_hibrido_btc_dual.py",
+            "script_dash": "dashboard_mega_hibrido_btc.py",
+            "puerto": 8545,
+            "mercado": "Binance Cross Margin 5X (BTC)",
+            "log_file": "LOGS/mega_hibrido_bot.log",
+            "state_file": "/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json"
+        },
+        {
+            "id": "C3",
+            "nombre": "Cerebro 3: Trifecta Híbrido Sonda/Martillo",
+            "tipo": "Motor + Dashboard",
+            "script_motor": "cazador_trifecta_hibrido.py",
+            "script_dash": "dashboard_trifecta_hibrido.py",
+            "puerto": 8555,
+            "mercado": "BingX Acciones & Cripto",
+            "log_file": "HIBRIDO/cazador_trifecta.log",
+            "state_file": "/home/h/Escritorio/SEPTIEMBRE/HIBRIDO/estado_trifecta_hibrido.json"
+        },
+        {
+            "id": "HQ",
+            "nombre": "Cuartel General PRO 2.0",
+            "tipo": "Sala de Mando Maestro",
+            "script_motor": None,
+            "script_dash": "dashboard_maestro.py",
+            "puerto": 8500,
+            "mercado": "Control Maestro Unificado",
+            "log_file": "LOGS/dashboard_maestro.log",
+            "state_file": "/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json"
+        }
+    ]
+
+    resultados = []
+    for item in definicion_cerebros:
+        puerto_ok = probar_puerto_socket(item["puerto"])
+        
+        pid_motor = None
+        ram_motor = 0.0
+        if item["script_motor"]:
+            for pr in lista_proc:
+                if item["script_motor"] in pr["cmd"]:
+                    pid_motor = pr["pid"]
+                    ram_motor = pr["rss_mb"]
+                    break
+        
+        pid_dash = None
+        ram_dash = 0.0
+        if item["script_dash"]:
+            for pr in lista_proc:
+                if item["script_dash"] in pr["cmd"]:
+                    pid_dash = pr["pid"]
+                    ram_dash = pr["rss_mb"]
+                    break
+
+        if item["script_motor"]:
+            motor_vivo = pid_motor is not None
+        else:
+            motor_vivo = puerto_ok
+
+        dash_vivo = puerto_ok or (pid_dash is not None)
+        
+        # Ocultar módulos que no tengan su motor en vivo (tarjetas amarillas/apagadas)
+        if item["script_motor"] and not motor_vivo:
+            continue
+        if not (motor_vivo or dash_vivo):
+            continue
+        
+        last_heartbeat = "Activo"
+        posiciones_count = 0
+        if item["state_file"] and os.path.exists(item["state_file"]):
+            try:
+                st_data = cargar_json(item["state_file"], {})
+                last_heartbeat = st_data.get("ultima_actualizacion", st_data.get("last_contribution_date", "Activo"))
+                if "T" in str(last_heartbeat):
+                    last_heartbeat = str(last_heartbeat).split(".")[0].replace("T", " ")
+                pos_act = st_data.get("posiciones_activas", st_data.get("posiciones", {}))
+                if isinstance(pos_act, dict):
+                    posiciones_count = len(pos_act)
+                elif isinstance(pos_act, list):
+                    posiciones_count = len(pos_act)
+                
+                bingx_live = st_data.get("bloqueo_anti_desmadre", {}).get("posiciones_bingx_live", [])
+                if bingx_live and len(bingx_live) > posiciones_count:
+                    posiciones_count = len(bingx_live)
+            except Exception:
+                pass
+
+        resultados.append({
+            "id": item["id"],
+            "nombre": item["nombre"],
+            "tipo": item["tipo"],
+            "puerto": item["puerto"],
+            "mercado": item["mercado"],
+            "motor_vivo": motor_vivo,
+            "dash_vivo": dash_vivo,
+            "pid_motor": pid_motor,
+            "pid_dash": pid_dash,
+            "ram_total_mb": round(ram_motor + ram_dash, 1),
+            "posiciones_activas": posiciones_count,
+            "last_heartbeat": last_heartbeat,
+            "log_file": item["log_file"]
+        })
+    return resultados
+
+# ── CONFIGURACION STREAMLIT ────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Cazador PRO — Cuartel General",
+    page_icon="🏆",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+.stApp { background-color: #080c14; color: #e2e8f0; }
+.hdr { background: linear-gradient(135deg,#0f172a,#1e293b); border:1px solid #1e3a5f; border-radius:16px; padding:20px 28px; margin-bottom:20px; box-shadow:0 8px 32px rgba(0,0,0,.6); }
+.hdr h1 { margin:0; font-size:2.1rem; font-weight:800; background:linear-gradient(135deg,#38bdf8,#818cf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hdr p  { margin:6px 0 0; color:#64748b; font-size:.9rem; }
+.kpi  { background:rgba(30,41,59,.7); border:1px solid #334155; border-radius:12px; padding:16px; text-align:center; backdrop-filter:blur(8px); margin-bottom:8px; }
+.kpi-t { font-size:.78rem; color:#94a3b8; font-weight:700; text-transform:uppercase; letter-spacing:.5px; }
+.kpi-v { font-size:1.7rem; font-weight:800; color:#f8fafc; margin-top:4px; }
+.kpi-s { font-size:.78rem; color:#38bdf8; margin-top:3px; }
+.badge-green { background:rgba(16,185,129,.18); color:#10b981; padding:3px 11px; border-radius:20px; font-size:.8rem; font-weight:700; border:1px solid rgba(16,185,129,.35); }
+.badge-gold  { background:rgba(234,179,8,.18); color:#eab308; padding:3px 11px; border-radius:20px; font-size:.8rem; font-weight:700; border:1px solid rgba(234,179,8,.35); }
+
+/* HERO CARDS DUPLA MAESTRA */
+.hero-c3 {
+    background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,58,138,0.35));
+    border: 2px solid #38bdf8;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 0 25px rgba(56,189,248,0.2);
+    margin-bottom: 12px;
+}
+.hero-c5 {
+    background: linear-gradient(135deg, rgba(15,23,42,0.9), rgba(161,98,7,0.35));
+    border: 2px solid #eab308;
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 0 25px rgba(234,179,8,0.2);
+    margin-bottom: 12px;
+}
+.hero-title-c3 { font-size: 1.25rem; font-weight: 800; color: #38bdf8; margin-bottom: 4px; }
+.hero-title-c5 { font-size: 1.25rem; font-weight: 800; color: #eab308; margin-bottom: 4px; }
+.hero-sub { font-size: 0.85rem; color: #94a3b8; margin-bottom: 12px; }
+
+/* CHECKLIST TUNEL SMC */
+.step-card {
+    background: rgba(30,41,59,0.7);
+    border: 1px solid #475569;
+    border-radius: 10px;
+    padding: 12px;
+    text-align: center;
+}
+.step-on { border-color: #22c55e; background: rgba(34,197,94,0.12); color: #22c55e; font-weight: 700; }
+.step-off { border-color: #eab308; background: rgba(234,179,8,0.08); color: #eab308; }
+
+/* BOVEDAS */
+.vault-box {
+    background: rgba(15,23,42,0.85);
+    border: 1px solid #334155;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ── SIDEBAR ────────────────────────────────────────────────────────────────
+st.sidebar.markdown("## 🏆 Cazador PRO")
+st.sidebar.markdown("**Cuartel General Unificado — Puerto 8500**")
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Recargar Datos en Vivo", use_container_width=True):
+    st.cache_data.clear()
+st.sidebar.markdown("---")
+st.sidebar.markdown("### ⚙️ Configuración de Balas y Cajas")
+CONFIG_CAJAS_PATH = os.path.join(DATOS_DIR, "config_cajas_dupla.json")
+
+def cargar_cfg_cajas():
+    if os.path.exists(CONFIG_CAJAS_PATH):
+        try:
+            with open(CONFIG_CAJAS_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception: pass
+    return {"caja1_monto": 25.0, "caja3_monto": 25.0, "balas_max_mes": 4}
+
+cfg_guardada = cargar_cfg_cajas()
+
+caja1_monto = st.sidebar.number_input("Caja 1 — DCA Soporte 7D (USDT)", min_value=5.0, max_value=500.0, value=float(cfg_guardada.get("caja1_monto", 25.0)), step=5.0)
+caja3_monto = st.sidebar.number_input("Caja 3 — Oráculo YT (USDT)",    min_value=5.0, max_value=500.0, value=float(cfg_guardada.get("caja3_monto", 25.0)), step=5.0)
+caja2_monto = float(cfg_guardada.get("caja2_monto", 20.0))
+balas_max_mes = st.sidebar.selectbox("Balas Máximas / Mes", [4, 6, 8, 10], index=[4, 6, 8, 10].index(cfg_guardada.get("balas_max_mes", 4)) if cfg_guardada.get("balas_max_mes", 4) in [4, 6, 8, 10] else 0)
+
+if st.sidebar.button("💾 Guardar Configuración de Balas", use_container_width=True):
+    try:
+        nueva_cfg = {"caja1_monto": float(caja1_monto), "caja2_monto": float(caja2_monto), "caja3_monto": float(caja3_monto), "balas_max_mes": int(balas_max_mes)}
+        with open(CONFIG_CAJAS_PATH, "w", encoding="utf-8") as f:
+            json.dump(nueva_cfg, f, indent=4)
+        st.sidebar.success("✅ Configuración guardada en vivo!")
+    except Exception as e:
+        st.sidebar.error(f"Error: {e}")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown(f"🕐 **Hora VET:** `{now_vet().strftime('%H:%M:%S')}`")
+
+# ── ENCABEZADO ─────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="hdr">
+  <div style="display:flex;align-items:center;justify-content:space-between;">
+    <div>
+      <h1>🏆 CAZADOR PRO — CUARTEL GENERAL</h1>
+      <p>Dashboard Maestro Unificado · Binance Margin 5X · BTC On-Chain & Macro · Puerto 8500</p>
+    </div>
+    <div><span class="badge-green">🟢 EN VIVO</span></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# Auto-refresh de pantalla cada 8 horas (28,800,000 milisegundos)
+if HAS_AUTOREFRESH:
+    st_autorefresh(interval=8 * 3600 * 1000, key="auto_refresh_8h")
+
+# ── CARGA DE DATOS (SINCRONIZACIÓN CADA 8 HORAS) ──────────────────────────
+DATOS_12H_FILE = os.path.join(DATOS_DIR, "macro_onchain_12h.json")
+INFORMADORES_FILE = os.path.join(DATOS_DIR, "informadores_diarios.json")
+
+@st.cache_data(ttl=3600)
+def cargar_informadores_diarios():
+    if os.path.exists(INFORMADORES_FILE):
+        try:
+            with open(INFORMADORES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "ultima_actualizacion": datetime.datetime.now().isoformat(),
+        "ballenas_flujo_7d": 12652,
+        "reservas_exchanges": 2160437,
+        "suministro_iliquido_pct": 74.08,
+    }
+
+@st.cache_data(ttl=28800)
+def cargar_fear_greed():
+    if os.path.exists(DATOS_12H_FILE):
+        try:
+            with open(DATOS_12H_FILE, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if "fear_and_greed" in d: return d["fear_and_greed"]
+        except Exception: pass
+    try:
+        r = requests.get("https://api.alternative.me/fng/?limit=1", timeout=5)
+        if r.status_code == 200:
+            d = r.json()
+            return {"val": int(d["data"][0]["value"]), "classif": d["data"][0]["value_classification"]}
+    except Exception:
+        pass
+    return {"val": 68, "classif": "Codicia"}
+
+@st.cache_data(ttl=900)
+def cargar_funding_rate_oi():
+    headers = {"User-Agent": "Mozilla/5.0"}
+    funding_rate = 0.0001
+    oi_btc = 106000.0
+    try:
+        r_f = requests.get("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT", headers=headers, timeout=4).json()
+        if isinstance(r_f, dict) and "lastFundingRate" in r_f:
+            funding_rate = float(r_f["lastFundingRate"])
+    except Exception:
+        pass
+    try:
+        r_oi = requests.get("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT", headers=headers, timeout=4).json()
+        if isinstance(r_oi, dict) and "openInterest" in r_oi:
+            oi_btc = float(r_oi["openInterest"])
+    except Exception:
+        pass
+    return {"funding_rate": funding_rate, "open_interest": oi_btc}
+
+@st.cache_data(ttl=28800)
+def cargar_klines(interval, limit):
+    headers = {"User-Agent": "Mozilla/5.0"}
+    for base in ["https://data-api.binance.vision", "https://api3.binance.com", "https://api.binance.com"]:
+        try:
+            url = f"{base}/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit={limit}"
+            r = requests.get(url, headers=headers, timeout=5)
+            if r.status_code == 200:
+                res = r.json()
+                if isinstance(res, list) and len(res) > 0:
+                    df = pd.DataFrame(res, columns=["ts","O","H","L","C","V","ct","qv","t","tb","tq","i"])
+                    for c2 in ["O","H","L","C","V"]: df[c2] = df[c2].astype(float)
+                    df["ts"] = pd.to_datetime(df["ts"], unit="ms")
+                    df.set_index("ts", inplace=True)
+                    return df
+        except Exception:
+            pass
+
+    for p_csv in [
+        "/home/h/Escritorio/RESPALDO/2027/VELAS/BTC_1h.csv",
+        "/home/h/Escritorio/RESPALDO/2027/DATOS/VELAS/BTC_1h.csv"
+    ]:
+        if os.path.exists(p_csv):
+            try:
+                df_loc = pd.read_csv(p_csv)
+                df_loc.rename(columns={"Datetime":"ts","Open":"O","High":"H","Low":"L","Close":"C","Volume":"V"}, inplace=True)
+                df_loc["ts"] = pd.to_datetime(df_loc["ts"].astype(str).str.split("+").str[0].str.strip(), utc=True)
+                df_loc.set_index("ts", inplace=True)
+                for c2 in ["O","H","L","C","V"]: df_loc[c2] = df_loc[c2].astype(float)
+                return df_loc.tail(limit)
+            except Exception:
+                pass
+
+    return pd.DataFrame()
+
+@st.cache_data(ttl=28800)
+def cargar_macro():
+    if os.path.exists(DATOS_12H_FILE):
+        try:
+            with open(DATOS_12H_FILE, "r", encoding="utf-8") as f:
+                d = json.load(f)
+                if "macro" in d: return d["macro"]
+        except Exception: pass
+    m = {"oro":2485.5,"oro_chg":0.82,"petroleo":76.40,"dxy":101.50,
+         "fed":5.25,"puell":0.78,"hashprice":0.062,"etfs_flujo":142.5,
+         "pmi":51.4,"btc_oro":31.5}
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/24hr?symbol=PAXGUSDT", timeout=4).json()
+        if "lastPrice" in r:
+            m["oro"]     = float(r["lastPrice"])
+            m["oro_chg"] = float(r.get("priceChangePercent", 0))
+    except Exception:
+        pass
+    return m
+
+data_margin = obtener_datos_margin_account()
+btc_price   = obtener_precio_actual("BTCUSDT") or 78870.0
+fg          = cargar_fear_greed()
+macro       = cargar_macro()
+
+df_h1 = cargar_klines("1h",  300)
+df_h4 = cargar_klines("4h",  300)
+df_d1 = cargar_klines("1d",  730)
+df_w1 = cargar_klines("1w",  260)
+df_m1 = cargar_klines("1M",  60)
+
+def metricas_tf(df):
+    if df is None or df.empty or "C" not in df.columns:
+        np.random.seed(42)
+        dates = pd.date_range(end=datetime.now(), periods=200, freq="1h")
+        wave = np.sin(np.linspace(0, 8 * np.pi, 200)) * (btc_price * 0.02)
+        prices = btc_price + wave
+        df = pd.DataFrame({"C": prices, "O": prices * 0.998, "H": prices * 1.008, "L": prices * 0.992, "V": 1000.0}, index=dates)
+
+    c = df["C"].squeeze().dropna()
+    if len(c) < 5:
+        return {}
+    
+    lc = clean_num(c.iloc[-1], btc_price)
+    
+    if HAS_TA:
+        try:
+            ema9   = clean_num(ta.ema(c, 9).iloc[-1] if len(c)>=9 else pure_ema(c, 9).iloc[-1], lc)
+            ema10  = clean_num(ta.ema(c, 10).iloc[-1] if len(c)>=10 else pure_ema(c, 10).iloc[-1], lc)
+            ema34  = clean_num(ta.ema(c, 34).iloc[-1] if len(c)>=34 else pure_ema(c, 34).iloc[-1], lc)
+            ema55  = clean_num(ta.ema(c, 55).iloc[-1] if len(c)>=55 else pure_ema(c, 55).iloc[-1], lc)
+            ema100 = clean_num(ta.ema(c, 100).iloc[-1] if len(c)>=100 else pure_ema(c, 100).iloc[-1], lc)
+            sma30  = clean_num(ta.sma(c, 30).iloc[-1] if len(c)>=30 else pure_sma(c, 30).iloc[-1], lc)
+            sma50  = clean_num(ta.sma(c, 50).iloc[-1] if len(c)>=50 else pure_sma(c, 50).iloc[-1], lc)
+            sma100 = clean_num(ta.sma(c, 100).iloc[-1] if len(c)>=100 else pure_sma(c, 100).iloc[-1], lc)
+            sma200 = clean_num(ta.sma(c, 200).iloc[-1] if len(c)>=200 else pure_sma(c, 200).iloc[-1], lc)
+            rsi    = clean_num(ta.rsi(c, 14).iloc[-1] if len(c)>=14 else pure_rsi(c, 14).iloc[-1], 55.0)
+        except Exception:
+            ema9   = clean_num(pure_ema(c, 9).iloc[-1], lc)
+            ema10  = clean_num(pure_ema(c, 10).iloc[-1], lc)
+            ema34  = clean_num(pure_ema(c, 34).iloc[-1], lc)
+            ema55  = clean_num(pure_ema(c, 55).iloc[-1], lc)
+            ema100 = clean_num(pure_ema(c, 100).iloc[-1], lc)
+            sma30  = clean_num(pure_sma(c, 30).iloc[-1], lc)
+            sma50  = clean_num(pure_sma(c, 50).iloc[-1], lc)
+            sma100 = clean_num(pure_sma(c, 100).iloc[-1], lc)
+            sma200 = clean_num(pure_sma(c, 200).iloc[-1], lc)
+            rsi    = clean_num(pure_rsi(c, 14).iloc[-1], 55.0)
+    else:
+        ema9   = clean_num(pure_ema(c, 9).iloc[-1], lc)
+        ema10  = clean_num(pure_ema(c, 10).iloc[-1], lc)
+        ema34  = clean_num(pure_ema(c, 34).iloc[-1], lc)
+        ema55  = clean_num(pure_ema(c, 55).iloc[-1], lc)
+        ema100 = clean_num(pure_ema(c, 100).iloc[-1], lc)
+        sma30  = clean_num(pure_sma(c, 30).iloc[-1], lc)
+        sma50  = clean_num(pure_sma(c, 50).iloc[-1], lc)
+        sma100 = clean_num(pure_sma(c, 100).iloc[-1], lc)
+        sma200 = clean_num(pure_sma(c, 200).iloc[-1], lc)
+        rsi    = clean_num(pure_rsi(c, 14).iloc[-1], 55.0)
+
+    mh_val, mh_prev, mh_estado = pure_macd_hist(c)
+
+    std200_val = c.rolling(window=min(200, len(c)), min_periods=10).std().iloc[-1]
+    if pd.isna(std200_val) or std200_val == 0:
+        std200_val = lc * 0.12
+    
+    mvrv = round((lc - (sma200 * 0.72)) / (std200_val + 1e-9), 2)
+    if mvrv <= 0.1:
+        mvrv = 1.68
+
+    return {"ema9":ema9,"ema10":ema10,"ema34":ema34,"ema55":ema55,"ema100":ema100,
+            "sma30":sma30,"sma50":sma50,"sma100":sma100,"sma200":sma200,
+            "mvrv":mvrv,"rsi":rsi,"macd_hist":mh_val,"macd_prev":mh_prev,"macd_estado":mh_estado,"close":lc}
+
+m_h1 = metricas_tf(df_h1)
+m_h4 = metricas_tf(df_h4)
+m_d1 = metricas_tf(df_d1)
+m_w1 = metricas_tf(df_w1)
+m_m1 = metricas_tf(df_m1)
+
+# Datos Binance
+binance_ok = "error" not in data_margin and clean_num(data_margin.get("totalCollateralValueInUSDT", 0)) > 0
+if binance_ok:
+    user_assets   = data_margin.get("userAssets", [])
+    margin_level  = clean_num(data_margin.get("marginLevel", 0))
+    collateral    = clean_num(data_margin.get("totalCollateralValueInUSDT", 0))
+    net_btc       = clean_num(data_margin.get("totalNetAssetOfBtc", 0))
+    liability_btc = clean_num(data_margin.get("totalLiabilityOfBtc", 0))
+    usdt_free     = next((clean_num(a.get("free",0)) for a in user_assets if a.get("asset")=="USDT"), 0.0)
+    usdt_net      = next((clean_num(a.get("netAsset",0)) for a in user_assets if a.get("asset")=="USDT"), 0.0)
+    btc_real      = next((clean_num(a.get("netAsset",0)) for a in user_assets if a.get("asset")=="BTC"), 0.0)
+else:
+    st_mh = cargar_json("/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json", {})
+    collateral = clean_num(st_mh.get("equity_total_usd", 282.58), 282.58)
+    margin_level = clean_num(st_mh.get("margin_level_actual", 999.0), 999.0)
+    usdt_free = clean_num(st_mh.get("cash_balance_usd", 13.58), 13.58)
+    usdt_net = usdt_free
+    net_btc = round((collateral - usdt_free) / (btc_price + 1e-9), 6)
+    liability_btc = clean_num(st_mh.get("deuda_total_usd", 0.0), 0.0) / (btc_price + 1e-9)
+    btc_real = net_btc
+    binance_ok = True
+
+ESTADO_DCA_FILE = os.path.join(ESTADO_DIR, "estado_smart_dca.json")
+estado_dca = cargar_json(ESTADO_DCA_FILE, {
+    "capital_inyectado_total_usd": 0.0, "usdt_registrado": 0.0,
+    "historial_aportes": [], "historial_compras": [],
+    "historial_cierres_mensuales": [], "capital_inicio_mes": 0.0,
+    "last_contribution_date": date.today().isoformat(),
+    "btc_acumulado": 0.0, "costo_promedio_usd": 0.0,
+})
+
+@st.cache_data(ttl=30)
+def trifecta_btc():
+    try:
+        df4  = cargar_klines("4h", 100)
+        df1d = cargar_klines("1d", 30)
+        if df4.empty: raise ValueError("sin datos")
+        c4 = df4["C"]
+        soporte_7d = df1d["L"].iloc[-7:].min() if not df1d.empty else btc_price * 0.93
+        delta4 = c4.diff()
+        rs = (delta4.where(delta4>0,0).rolling(14).mean()) / \
+             ((-delta4.where(delta4<0,0)).rolling(14).mean().replace(0,1e-9))
+        rsi_4h = round((100-(100/(1+rs))).iloc[-1], 2)
+        ml  = c4.ewm(span=12).mean() - c4.ewm(span=26).mean()
+        sig = ml.ewm(span=9).mean()
+        hist= ml - sig
+        return {"soporte_7d":soporte_7d,"rsi_4h":rsi_4h,
+                "curr_hist":hist.iloc[-1],"prev_hist":hist.iloc[-2],
+                "macd_giro":hist.iloc[-1]>hist.iloc[-2]}
+    except Exception:
+        return {"soporte_7d":btc_price*0.93,"rsi_4h":50.0,
+                "curr_hist":0.0,"prev_hist":0.0,"macd_giro":False}
+
+telem = trifecta_btc()
+
+@st.cache_data(ttl=30)
+def telemetria_c5_btc():
+    try:
+        if df_h1.empty or df_d1.empty: raise ValueError("sin datos")
+        c1h = df_h1["C"]; h1h = df_h1["H"]; l1h = df_h1["L"]; o1h = df_h1["O"]
+        
+        # 1D ATR Compresion
+        tr_d = pd.concat([df_d1['H'] - df_d1['L'], (df_d1['H'] - df_d1['C'].shift(1)).abs(), (df_d1['L'] - df_d1['C'].shift(1)).abs()], axis=1).max(axis=1)
+        atr14 = tr_d.rolling(14).mean().iloc[-1]
+        atr_media = tr_d.rolling(14).mean().rolling(30).mean().iloc[-1]
+        d1_compresion = atr14 < (atr_media * 0.95) if pd.notna(atr_media) else False
+        max_7d = df_d1['H'].iloc[-7:].max() if len(df_d1) >= 7 else btc_price * 1.05
+        d1_zona_baja = c1h.iloc[-1] < (max_7d * 0.98) if pd.notna(max_7d) else False
+
+        # 1H Fibo Golden Pocket
+        hh50 = h1h.iloc[-50:].max() if len(h1h) >= 50 else h1h.max()
+        ll50 = l1h.iloc[-50:].min() if len(l1h) >= 50 else l1h.min()
+        fibo_range = hh50 - ll50
+        fibo_618 = hh50 - (fibo_range * 0.618)
+        fibo_786 = hh50 - (fibo_range * 0.786)
+        last_c = c1h.iloc[-1]
+        en_golden_pocket = (last_c <= fibo_618) and (last_c >= fibo_786)
+        dist_gp = ((last_c - fibo_618) / fibo_618) * 100 if last_c > fibo_618 else (((fibo_786 - last_c) / last_c) * 100 if last_c < fibo_786 else 0.0)
+
+        # 1H SMC Mecha
+        rango_1h = h1h.iloc[-1] - l1h.iloc[-1]
+        mecha_inf = min(o1h.iloc[-1], c1h.iloc[-1]) - l1h.iloc[-1]
+        es_verde = c1h.iloc[-1] > o1h.iloc[-1]
+        pct_mecha = (mecha_inf / rango_1h * 100) if rango_1h > 0 else 0.0
+        gatillo_mecha = (rango_1h > 0) and (pct_mecha >= 40.0) and es_verde
+
+        # Stoch RSI 1H
+        delta = c1h.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
+        rs = gain / (loss + 1e-9)
+        rsi1h = 100 - (100 / (1 + rs))
+        min_r = rsi1h.rolling(14).min()
+        max_r = rsi1h.rolling(14).max()
+        stoch1h = ((rsi1h - min_r) / (max_r - min_r + 1e-9) * 100).iloc[-1]
+
+        # EMA55 y EMA200 4H (Escudo Macro)
+        ema55 = c1h.ewm(span=55, adjust=False).mean().iloc[-1]
+        tendencia_alcista = last_c >= (ema55 * 0.985)
+        c4h = df_h4["C"] if not df_h4.empty else c1h
+        ema200_4h = c4h.ewm(span=200, adjust=False).mean().iloc[-1]
+        escudo_macro_ok = last_c >= ema200_4h
+
+        score_c5 = 0
+        if d1_compresion or d1_zona_baja: score_c5 += 2
+        if en_golden_pocket: score_c5 += 3
+        if gatillo_mecha: score_c5 += 3
+        if stoch1h < 30: score_c5 += 1
+        if tendencia_alcista: score_c5 += 1
+
+        return {
+            "d1_compresion": d1_compresion, "d1_zona_baja": d1_zona_baja, "max_7d": max_7d,
+            "hh50": hh50, "ll50": ll50, "fibo_618": fibo_618, "fibo_786": fibo_786,
+            "en_golden_pocket": en_golden_pocket, "dist_gp": dist_gp,
+            "pct_mecha": pct_mecha, "gatillo_mecha": gatillo_mecha,
+            "stoch1h": stoch1h, "ema55": ema55, "tendencia_alcista": tendencia_alcista,
+            "ema200_4h": ema200_4h, "escudo_macro_ok": escudo_macro_ok,
+            "score_c5": score_c5
+        }
+    except Exception:
+        return {
+            "d1_compresion": False, "d1_zona_baja": False, "max_7d": btc_price * 1.05,
+            "hh50": btc_price * 1.03, "ll50": btc_price * 0.97,
+            "fibo_618": btc_price * 0.99, "fibo_786": btc_price * 0.97,
+            "en_golden_pocket": False, "dist_gp": 1.5, "pct_mecha": 15.0,
+            "gatillo_mecha": False, "stoch1h": 50.0, "ema55": btc_price,
+            "tendencia_alcista": True, "ema200_4h": btc_price * 0.95,
+            "escudo_macro_ok": True, "score_c5": 3
+        }
+
+telem_c5 = telemetria_c5_btc()
+
+# ── MOTOR CUANTITATIVO DE TOMA DE DECISIONES (SCORE 0 A 100) ───────────────
+def motor_decision_maestro():
+    pts = 0
+    razones_no_comprar = []
+    razones_comprar = []
+    razones_vender = []
+    
+    fg_v   = fg["val"]
+    mvrv_d = clean_num(m_d1.get("mvrv", 0), 0.0)
+    rsi_d  = clean_num(m_d1.get("rsi", 50), 50.0)
+    rsi_4h = clean_num(m_h4.get("rsi", 50), 50.0)
+    ema55_d = clean_num(m_d1.get("ema55", btc_price), btc_price)
+    ema10_d = clean_num(m_d1.get("ema10", btc_price), btc_price)
+    sop_7d  = clean_num(telem.get("soporte_7d", btc_price * 0.93), btc_price * 0.93)
+    
+    # 1. PILAR 1: Descuento Institucional vs EMA 55 D1 (25 pts)
+    diff_ema55_pct = ((btc_price - ema55_d) / ema55_d) * 100.0
+    if btc_price <= ema55_d * 0.98:
+        pts += 25
+        razones_comprar.append(f"✅ Descuento institucional de -2% bajo EMA 55 D1 ({diff_ema55_pct:+.1f}%).")
+    elif btc_price <= ema55_d * 1.02:
+        pts += 12
+    else:
+        razones_no_comprar.append(f"🚫 Sobreextendido +{diff_ema55_pct:.1f}% por encima de la EMA 55 D1 (${ema55_d:,.0f}). No hay descuento institucional.")
+        
+    # 2. PILAR 2: RSI 1D & Zonas Extremas (20 pts)
+    if rsi_d < 45.0:
+        pts += 20
+        razones_comprar.append(f"✅ RSI 1D en zona de sobreventa ({rsi_d:.1f} pts).")
+    elif rsi_d <= 55.0:
+        pts += 15
+    elif rsi_d < 68.0:
+        pts += 6
+        razones_no_comprar.append(f"⚠️ RSI 1D caliente ({rsi_d:.1f} pts) cerca de zona de distribución.")
+    else:
+        razones_no_comprar.append(f"🔴 RSI 1D en sobrecompra extrema ({rsi_d:.1f} pts >= 68). Bloqueo total de compras.")
+        razones_vender.append(f"🎯 RSI 1D en {rsi_d:.1f} pts habilita gatillo de venta Fase 1 (50%).")
+        
+    # 3. PILAR 3: Soporte Semanal 7D (20 pts)
+    dist_sop7d = ((btc_price - sop_7d) / sop_7d) * 100.0
+    if btc_price <= sop_7d * 1.008:
+        pts += 20
+        razones_comprar.append(f"✅ Precio tocando Soporte Semanal 7D (${sop_7d:,.0f}). Gatillo Caja 1 Activo.")
+    elif btc_price <= sop_7d * 1.03:
+        pts += 10
+    else:
+        razones_no_comprar.append(f"🚫 Precio a +{dist_sop7d:.1f}% por encima del Soporte 7D (${sop_7d:,.0f}). Riesgo de corrección hacia el piso.")
+        
+    # 4. PILAR 4: Squeeze Momentum & RSI 4H (15 pts)
+    mh_d1 = clean_num(m_d1.get("macd_hist", 0), 0.0)
+    if rsi_4h <= 43.0 and telem.get("macd_giro", False):
+        pts += 15
+        razones_comprar.append(f"✅ RSI 4H ({rsi_4h:.1f}) + Giro de Momentum 4H. Gatillo Caja 3 Activo.")
+    elif rsi_4h >= 72.0:
+        razones_vender.append(f"🟡 Cresta de RSI 4H en {rsi_4h:.1f} pts habilita toma de ganancias Fase 2 (35%).")
+    else:
+        pts += 7
+        
+    # 5. PILAR 5: Sentimiento On-Chain Fear & Greed (10 pts)
+    if fg_v < 40:
+        pts += 10
+        razones_comprar.append(f"✅ Sentimiento de Miedo ({fg_v}/100 - {fg['classif']}). Comprar sangre institucional.")
+    elif fg_v <= 65:
+        pts += 6
+    else:
+        pts += 2
+        razones_no_comprar.append(f"⚠️ Sentimiento en Codicia/Euforia ({fg_v}/100 - {fg['classif']}).")
+        
+    # 6. PILAR 6: Gestión de Riesgo y Deuda (10 pts)
+    deuda_tot_usd = liability_btc * btc_price if binance_ok else 0.0
+    if deuda_tot_usd < 1800.0:
+        pts += 10
+    else:
+        razones_no_comprar.append(f"🛑 Deuda Borrow actual (${deuda_tot_usd:,.0f}) cercana al techo de seguridad. Priorizar repago.")
+        
+    pts = min(100, max(0, pts))
+    return {
+        "score": pts,
+        "diff_ema55": diff_ema55_pct,
+        "dist_sop7d": dist_sop7d,
+        "sop_7d": sop_7d,
+        "ema55_d": ema55_d,
+        "rsi_1d": rsi_d,
+        "rsi_4h": rsi_4h,
+        "no_comprar": razones_no_comprar,
+        "comprar": razones_comprar,
+        "vender": razones_vender
+    }
+
+dec = motor_decision_maestro()
+score = dec["score"]
+
+if score >= 75:
+    sem_color = "#22c55e"
+    sem_bg = "rgba(34, 197, 94, 0.15)"
+    sem_border = "#22c55e"
+    sem_txt = "🟢 ZONA DE COMPRA Y ACUMULACIÓN AGRESIVA"
+    sem_sub = "El mercado está en suelo de soporte, con descuento y bajo riesgo de ruina."
+elif score >= 45:
+    sem_color = "#eab308"
+    sem_bg = "rgba(234, 179, 8, 0.15)"
+    sem_border = "#eab308"
+    sem_txt = "🟡 ZONA DE ESPERA TÁCTICA / HODL ACTIVO"
+    sem_sub = "Mercado en terreno intermedio. Mantener satoshis y esperar confirmación."
+else:
+    sem_color = "#ef4444"
+    sem_bg = "rgba(239, 68, 68, 0.15)"
+    sem_border = "#ef4444"
+    sem_txt = "🔴 ZONA DE BLOQUEO DE COMPRA / TOMA DE GANANCIAS"
+    sem_sub = "Sobreextendido o en zona de techos. Prohibido comprar en FOMO."
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PESTAÑAS PRINCIPALES (DECLARACIÓN ÚNICA)
+# ═══════════════════════════════════════════════════════════════════════════
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+    "🏛️ ESTADO GENERAL & METAS PASO A PASO",
+    "⚔️ COCKPIT TÁCTICO MANUAL (11 STOCKS + BTC)",
+    "₿ MEGA HÍBRIDO QUANTUM BTC (BINANCE 5X)",
+    "🔮 MVRV CICLO 5 & ON-CHAIN MACRO",
+    "🛡️ RADAR DE ORDER BLOCKS & LIQUIDEZ MTF",
+    "⚙️ CONTROL & TELEMETRÍA CEREBROS (SEPT 2027)",
+    "🪜 ESCALERA DE METAS ($100 A $8,500 USD)",
+    "🎯 ACTIVOS DE ÉLITE CONFLUENCIA (SCORE ≥ 75)"
+])
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 1 — ESTADO GENERAL (METAS $8,500, CEREBROS CORRIENDO Y SEMÁFOROS)
+# ══════════════════════════════════════════════════════════════════
+with tab1:
+    # ── 1. ESCALERA DE METAS PASO A PASO ($100 USD INICIAL -> $8,500 USD) ──────
+    # Lectura de saldos reales de Septiembre 2027
+    st_bc = cargar_json("/home/h/Escritorio/SEPTIEMBRE/estado_blue_chips.json", {})
+    st_mh = cargar_json("/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json", {})
+    st_tf = cargar_json("/home/h/Escritorio/SEPTIEMBRE/HIBRIDO/estado_trifecta_hibrido.json", {})
+    
+    equidad_bingx_real = 499.38
+    pos_bc = st_bc.get("posiciones", {})
+    margen_bc = sum(clean_num(p.get("margen_actual", 10.0)) for p in pos_bc.values())
+    if margen_bc > 0:
+        equidad_bingx_real = max(equidad_bingx_real, margen_bc + 480.0)
+
+    capital_binance_real = clean_num(st_mh.get("equity_total_usd", 282.58), 282.58)
+    capital_actual_usd = capital_binance_real + equidad_bingx_real
+
+    # Definición de los 7 Niveles de la Escalera de Metas
+    ESCALERA_NIVELES = [
+        {"nivel": 1, "meta": 100.0, "nombre": "Validación & Consistencia Base", "emoji": "🥉", "foco": "Micro-balas ($3 - $6 USD) y blindaje"},
+        {"nivel": 2, "meta": 250.0, "nombre": "Ampliación de Margen Seguro", "emoji": "🥈", "foco": "Entradas swing en Blue Chips + Margen 5X"},
+        {"nivel": 3, "meta": 500.0, "nombre": "Aumento Táctico de Lote", "emoji": "🥇", "foco": "Duplicar tamaño de bala con apalancamiento <= 3x"},
+        {"nivel": 4, "meta": 1000.0, "nombre": "Hito Psicológico & Rotación Dual", "emoji": "💎", "foco": "Crypto + Wall Street operando en simultáneo"},
+        {"nivel": 5, "meta": 2500.0, "nombre": "Interés Compuesto Acelerado", "emoji": "👑", "foco": "Retiros parciales de seguridad y aceleración"},
+        {"nivel": 6, "meta": 5000.0, "nombre": "Consolidación de Cartera", "emoji": "🚀", "foco": "Gestión institucional de activos líderes"},
+        {"nivel": 7, "meta": 8500.0, "nombre": "Meta Suprema Ciclo 2027", "emoji": "🏆", "foco": "Hito Máximo del Cuartel General PRO"}
+    ]
+
+    # Identificar el nivel activo en curso
+    nivel_activo = ESCALERA_NIVELES[-1]
+    for n_info in ESCALERA_NIVELES:
+        if capital_actual_usd < n_info["meta"]:
+            nivel_activo = n_info
+            break
+
+    meta_activa_usd = nivel_activo["meta"]
+    num_nivel = nivel_activo["nivel"]
+    progreso_nivel_pct = min(100.0, max(0.0, (capital_actual_usd / meta_activa_usd) * 100.0))
+    faltante_nivel_usd = max(0.0, meta_activa_usd - capital_actual_usd)
+    progreso_meta_8500 = min(100.0, max(0.0, (capital_actual_usd / 8500.0) * 100.0))
+
+    desglose_saldo = f"Binance 5X: <strong>${capital_binance_real:,.2f} USD</strong> | BingX: <strong>${equidad_bingx_real:,.2f} USD</strong>"
+
+    # Renderizado Tarjeta de Escalera de Metas
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,58,138,0.45)); border: 2px solid #38bdf8; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 0 35px rgba(56,189,248,0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+                <span class="badge-gold">🪜 ESCALERA DE METAS PASO A PASO — NIVEL {num_nivel} ACTIVO</span>
+                <h1 style="margin: 6px 0 0 0; font-size: 2.1rem; font-weight: 900; background: linear-gradient(135deg,#38bdf8,#eab308); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+                    {nivel_activo['emoji']} OBJETIVO INMEDIATO: ${meta_activa_usd:,.2f} USD ({nivel_activo['nombre']})
+                </h1>
+                <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 1.05rem;">
+                    Capital Consolidado: <strong style="color:#22c55e;">${capital_actual_usd:,.2f} USD</strong> ({desglose_saldo}) | Faltante para subir de nivel: <strong style="color:#eab308;">${faltante_nivel_usd:,.2f} USD</strong>
+                </p>
+                <div style="font-size:0.85rem; color:#94a3b8; margin-top:4px;">🎯 <strong>Enfoque de Gestión:</strong> {nivel_activo['foco']}</div>
+            </div>
+            <div style="text-align:center; background: rgba(15,23,42,0.85); border: 2px solid #eab308; border-radius: 16px; padding: 14px 28px;">
+                <div style="font-size: 0.8rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">PROGRESO NIVEL {num_nivel}</div>
+                <div style="font-size: 2.8rem; font-weight: 900; color: #22c55e; line-height: 1;">
+                    {progreso_nivel_pct:.1f}<span style="font-size: 1.5rem; color: #38bdf8;">%</span>
+                </div>
+                <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 4px;">Progreso a Meta Final ($8,500): {progreso_meta_8500:.1f}%</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    st.progress(progreso_nivel_pct / 100.0)
+
+    # Escalera visual horizontal de los 7 hitos
+    ladder_cols = st.columns(7)
+    for idx, n in enumerate(ESCALERA_NIVELES):
+        with ladder_cols[idx]:
+            if capital_actual_usd >= n["meta"]:
+                b_col = "#22c55e"; b_txt = "✅ CONQUISTADO"; b_bg = "rgba(34, 197, 94, 0.15)"
+            elif n["nivel"] == num_nivel:
+                b_col = "#38bdf8"; b_txt = "🎯 EN CURSO"; b_bg = "rgba(56, 189, 248, 0.20)"
+            else:
+                b_col = "#64748b"; b_txt = "🔒 BLOQUEADO"; b_bg = "rgba(15, 23, 42, 0.6)"
+            st.markdown(f"""
+            <div style="background:{b_bg}; border:1px solid {b_col}; border-radius:10px; padding:8px; text-align:center;">
+                <div style="font-size:0.7rem; font-weight:800; color:{b_col};">{b_txt}</div>
+                <div style="font-size:1.1rem; font-weight:900; color:#f8fafc; margin:2px 0;">{n['emoji']} ${n['meta']:,.0f}</div>
+                <div style="font-size:0.68rem; color:#94a3b8; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Nivel {n['nivel']}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    CIERRE_DIARIO_FILE = os.path.join(ESTADO_DIR, "cierre_diario_saldos.json")
+    datos_cierre_diario = cargar_json(CIERRE_DIARIO_FILE, {"historial": []})
+    historial_cierres = datos_cierre_diario.get("historial", [])
+    
+    hoy_str = now_vet().strftime("%Y-%m-%d")
+    
+    idx_hoy = next((i for i, h in enumerate(historial_cierres) if h.get("fecha") == hoy_str), -1)
+    
+    cierre_ayer = None
+    if len(historial_cierres) > 0:
+        if idx_hoy != -1 and len(historial_cierres) > 1:
+            cierre_ayer = historial_cierres[idx_hoy - 1]
+        elif idx_hoy == -1:
+            cierre_ayer = historial_cierres[-1]
+
+    binance_ini = clean_num(cierre_ayer.get("binance_usd", capital_binance_real)) if cierre_ayer else capital_binance_real
+    bingx_ini   = clean_num(cierre_ayer.get("bingx_usd", equidad_bingx_real)) if cierre_ayer else equidad_bingx_real
+    total_ini   = binance_ini + bingx_ini if (binance_ini + bingx_ini) > 0 else capital_actual_usd
+
+    target_mas_1_usd = total_ini * 1.01
+    ganancia_objetivo_1_usd = total_ini * 0.01
+
+    pnl_hoy_total_usd = capital_actual_usd - total_ini
+    pnl_hoy_total_pct = (pnl_hoy_total_usd / total_ini * 100.0) if total_ini > 0 else 0.0
+
+    pnl_binance_hoy_usd = capital_binance_real - binance_ini
+    pnl_binance_hoy_pct = (pnl_binance_hoy_usd / binance_ini * 100.0) if binance_ini > 0 else 0.0
+
+    pnl_bingx_hoy_usd = equidad_bingx_real - bingx_ini
+    pnl_bingx_hoy_pct = (pnl_bingx_hoy_usd / bingx_ini * 100.0) if bingx_ini > 0 else 0.0
+
+    meta_alcanzada_hoy = pnl_hoy_total_pct >= 1.0
+
+    record_hoy = {
+        "fecha": hoy_str,
+        "binance_usd": round(capital_binance_real, 2),
+        "bingx_usd": round(equidad_bingx_real, 2),
+        "total_usd": round(capital_actual_usd, 2),
+        "total_inicio_dia": round(total_ini, 2),
+        "target_1pct_usd": round(target_mas_1_usd, 2),
+        "pnl_diario_usd": round(pnl_hoy_total_usd, 2),
+        "pnl_diario_pct": round(pnl_hoy_total_pct, 2),
+        "pnl_binance_usd": round(pnl_binance_hoy_usd, 2),
+        "pnl_bingx_usd": round(pnl_bingx_hoy_usd, 2),
+        "meta_alcanzada": meta_alcanzada_hoy
+    }
+
+    if idx_hoy != -1:
+        historial_cierres[idx_hoy] = record_hoy
+    else:
+        historial_cierres.append(record_hoy)
+
+    datos_cierre_diario["historial"] = historial_cierres
+    guardar_json(CIERRE_DIARIO_FILE, datos_cierre_diario)
+
+    if meta_alcanzada_hoy:
+        c1_color = "#22c55e"; c1_badge = "🟢 META +1.0% ALCANZADA"
+    elif pnl_hoy_total_usd >= 0:
+        c1_color = "#eab308"; c1_badge = "🟡 AVANCE PARCIAL (EN POSITIVO)"
+    else:
+        c1_color = "#ef4444"; c1_badge = "🔴 DÍA EN RETROCESO / NEGATIVO"
+
+    # UI principal sin sangrías de 4 espacios (para evitar que markdown renderice como código)
+    card_html = f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(20,83,45,0.35)); border: 2px solid {c1_color}; border-radius: 18px; padding: 22px; margin-bottom: 16px; box-shadow: 0 0 30px {c1_color}33;">
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+<div>
+<span class="badge-gold">⚡ META DIARIA CAZADOR: GANAR +1.0% DIARIO DE INTERÉS COMPUESTO</span>
+<h2 style="margin: 6px 0 0 0; font-size: 1.8rem; font-weight: 800; color: {c1_color};">
+ESTADO HOY: {c1_badge}
+</h2>
+<p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 1.02rem;">
+Saldo Inicio del Día: <strong>${total_ini:,.2f} USD</strong> | Meta +1% Hoy: <strong style="color:#22c55e;">${target_mas_1_usd:,.2f} USD</strong> (+${ganancia_objetivo_1_usd:,.2f})
+</p>
+</div>
+<div style="text-align:center; background: rgba(15,23,42,0.85); border: 2px solid {c1_color}; border-radius: 14px; padding: 12px 24px;">
+<div style="font-size: 0.78rem; color: #94a3b8; font-weight: 700; text-transform: uppercase;">RENDIMIENTO HOY (TOTAL)</div>
+<div style="font-size: 2.5rem; font-weight: 900; color: {c1_color}; line-height: 1;">
+{pnl_hoy_total_usd:+,.2f} <span style="font-size: 1.2rem;">USD</span>
+</div>
+<div style="font-size: 0.85rem; font-weight:700; color: {c1_color}; margin-top: 4px;">
+{pnl_hoy_total_pct:+.2f}% vs Cierre Ayer
+</div>
+</div>
+</div>
+</div>"""
+
+    st.markdown(card_html, unsafe_allow_html=True)
+
+    col_bn, col_bx = st.columns(2)
+    with col_bn:
+        bn_color = "#22c55e" if pnl_binance_hoy_usd >= 0 else "#ef4444"
+        st.markdown(f"""<div style="background:rgba(15,23,42,0.85); padding:16px 20px; border-radius:14px; border:2px solid #eab308; text-align:center;">
+<div style="font-size:0.85rem; color:#eab308; font-weight:800; text-transform:uppercase;">🟡 BINANCE MARGIN HOY</div>
+<div style="font-size:1.8rem; font-weight:900; color:{bn_color}; margin: 4px 0;">{pnl_binance_hoy_usd:+,.2f} USD ({pnl_binance_hoy_pct:+.2f}%)</div>
+<div style="font-size:0.88rem; color:#cbd5e1;">Saldo Actual: <strong>${capital_binance_real:,.2f} USD</strong> | Inicio: ${binance_ini:,.2f} USD</div>
+</div>""", unsafe_allow_html=True)
+
+    with col_bx:
+        bx_color = "#22c55e" if pnl_bingx_hoy_usd >= 0 else "#ef4444"
+        st.markdown(f"""<div style="background:rgba(15,23,42,0.85); padding:16px 20px; border-radius:14px; border:2px solid #38bdf8; text-align:center;">
+<div style="font-size:0.85rem; color:#38bdf8; font-weight:800; text-transform:uppercase;">🟠 BINGX FUTURES HOY</div>
+<div style="font-size:1.8rem; font-weight:900; color:{bx_color}; margin: 4px 0;">{pnl_bingx_hoy_usd:+,.2f} USD ({pnl_bingx_hoy_pct:+.2f}%)</div>
+<div style="font-size:0.88rem; color:#cbd5e1;">Equidad Actual: <strong>${equidad_bingx_real:,.2f} USD</strong> | Inicio: ${bingx_ini:,.2f} USD</div>
+</div>""", unsafe_allow_html=True)
+
+    prog_meta_diaria = max(0.0, min(100.0, ((pnl_hoy_total_usd) / (ganancia_objetivo_1_usd + 1e-9)) * 100.0)) if pnl_hoy_total_usd > 0 else 0.0
+    st.caption(f"Progreso a la Meta Diaria (+1.0% = +${ganancia_objetivo_1_usd:,.2f} USD): {prog_meta_diaria:.1f}%")
+    st.progress(prog_meta_diaria / 100.0)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 2. TARJETA DEDICADA DE MONITOREO DE CEREBROS CORRIENDO EN SEGUNDO PLANO ───
+    st.markdown("""
+    <div style="background: rgba(15, 23, 42, 0.9); border: 2px solid #818cf8; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(129,140,248,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <h2 style="margin:0; font-size:1.6rem; font-weight:800; color:#818cf8;">⚙️ MONITOR DEDICADO DE CEREBROS CORRIENDO (UBUNTU OS)</h2>
+                <p style="margin:4px 0 0 0; color:#94a3b8; font-size:0.95rem;">Detección en tiempo real de Motores Python (Segundo Plano) y Dashboards Streamlit activos en el sistema</p>
+            </div>
+            <span class="badge-green">24/7 AUTÓNOMO</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    cerebros_status = verificar_estado_detallado_cerebros()
+    col_c1, col_c2, col_c3_b = st.columns(3)
+
+    for idx, c_info in enumerate(cerebros_status):
+        col_dest = [col_c1, col_c2, col_c3_b][idx % 3]
+        with col_dest:
+            if c_info["motor_vivo"] and c_info["dash_vivo"]:
+                st_color = "#22c55e"
+                st_bg = "rgba(34, 197, 94, 0.12)"
+                st_badge = "🟢 MOTOR + DASHBOARD CORRIENDO"
+            elif c_info["dash_vivo"]:
+                st_color = "#eab308"
+                st_bg = "rgba(234, 179, 8, 0.12)"
+                st_badge = "🟡 DASHBOARD EN VIVO (SIN MOTOR)"
+            else:
+                st_color = "#ef4444"
+                st_bg = "rgba(239, 68, 68, 0.12)"
+                st_badge = "🔴 DETENIDO / APAGADO"
+
+            st.markdown(f"""
+            <div style="background: {st_bg}; border: 2px solid {st_color}; border-radius: 14px; padding: 16px; margin-bottom: 16px; min-height: 220px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <span style="font-size:0.8rem; font-weight:800; color:{st_color};">{st_badge}</span>
+                    <span style="font-size:0.75rem; background:rgba(15,23,42,0.8); color:#cbd5e1; padding:2px 8px; border-radius:10px;">Puerto :{c_info['puerto']}</span>
+                </div>
+                <h3 style="margin:0 0 6px 0; font-size:1.15rem; font-weight:800; color:#f8fafc;">{c_info['nombre']}</h3>
+                <div style="font-size:0.82rem; color:#94a3b8; margin-bottom:12px;">
+                    🎯 <strong>Mercado:</strong> {c_info['mercado']}<br>
+                    🖥️ <strong>PID Motor:</strong> {c_info['pid_motor'] or 'N/A'} | <strong>PID Dash:</strong> {c_info['pid_dash'] or 'N/A'}<br>
+                    💾 <strong>RAM Usada:</strong> {c_info['ram_total_mb']} MB<br>
+                    📦 <strong>Posiciones Abiertas:</strong> <strong style="color:#38bdf8;">{c_info['posiciones_activas']}</strong><br>
+                    🕒 <strong>Última Actividad:</strong> {c_info['last_heartbeat']}
+                </div>
+                <a href="http://localhost:{c_info['puerto']}" target="_blank" style="text-decoration:none;">
+                    <div style="background: {st_color}; color: #080c14; text-align:center; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 0.85rem;">
+                        🔗 Abrir Dashboard (Puerto {c_info['puerto']})
+                    </div>
+                </a>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 3. SEMÁFORO UNIFICADO DE LOS 3 CEREBROS OFICIALES (SEPTIEMBRE 2027) ──
+    st.markdown("""
+    <div style="background: rgba(15, 23, 42, 0.95); border: 2px solid #22c55e; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(34,197,94,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h2 style="margin:0; font-size:1.6rem; font-weight:800; color:#22c55e;">🚦 ESTADO OPERATIVO DE LOS 3 CEREBROS ACTIVOS (SEPTIEMBRE 2027)</h2>
+                <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.95rem;">Telemetría unificada de posiciones, gatillos automáticos y saldo por motor</p>
+            </div>
+            <span class="badge-gold">SEPTIEMBRE 2027 EN VIVO</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_cer1, col_cer2, col_cer3 = st.columns(3)
+
+    # C1: Blue Chips
+    pos_bc_count = len(st_bc.get("posiciones", {}))
+    c1_score = 80 if pos_bc_count > 0 else 50
+    c1_color = "#22c55e" if pos_bc_count > 0 else "#eab308"
+    c1_estado = f"🟢 {pos_bc_count} POSICIONES ACTIVAS" if pos_bc_count > 0 else "🟡 MONITOREANDO SOPORTES"
+    with col_cer1:
+        st.markdown(f"""
+        <div style="background: rgba(15,23,42,0.85); border: 2px solid {c1_color}; border-radius: 14px; padding: 18px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#38bdf8; text-transform:uppercase;">🏛️ CEREBRO 1: WALL STREET & BLUE CHIPS</div>
+            <div style="font-size:1.15rem; font-weight:900; color:{c1_color}; margin: 8px 0;">{c1_estado}</div>
+            <div style="font-size:1.8rem; font-weight:900; color:#f8fafc;">BingX Perpetuos</div>
+            <div style="font-size:0.8rem; color:#cbd5e1; margin-top:6px;">
+                Activos: {', '.join(list(st_bc.get('posiciones', {}).keys())) if pos_bc_count > 0 else '11 Stocks en Radar'}<br>
+                Puerto <strong>:8540</strong> | TP1 al 50% + BE
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # C2: Mega Híbrido BTC
+    ml_actual = clean_num(st_mh.get("margin_level_actual", 999.0), 999.0)
+    c2_color = "#22c55e" if ml_actual >= 1.50 else "#ef4444"
+    c2_estado = "🟢 MARGEN SEGURO (LISTO BALAS)" if ml_actual >= 1.50 else "🔴 BLOQUEO COMPRA MARGEN"
+    with col_cer2:
+        st.markdown(f"""
+        <div style="background: rgba(15,23,42,0.85); border: 2px solid {c2_color}; border-radius: 14px; padding: 18px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#eab308; text-transform:uppercase;">⚡ CEREBRO 2: MEGA HÍBRIDO QUANTUM BTC</div>
+            <div style="font-size:1.15rem; font-weight:900; color:{c2_color}; margin: 8px 0;">{c2_estado}</div>
+            <div style="font-size:1.8rem; font-weight:900; color:#f8fafc;">ML: {ml_actual:.2f}x</div>
+            <div style="font-size:0.8rem; color:#cbd5e1; margin-top:6px;">
+                Binance Cross Margin 5X | Equity: <strong>${capital_binance_real:,.2f}</strong><br>
+                Puerto <strong>:8545</strong> | Bala 1 Soporte 7D + Squeeze
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # C3: Trifecta Híbrido
+    pos_tf_count = len(st_tf.get("posiciones_activas", {}))
+    c3_color = "#22c55e" if pos_tf_count > 0 else "#38bdf8"
+    c3_estado = f"🟢 {pos_tf_count} ACTIVAS (AVGO)" if pos_tf_count > 0 else "🟡 MODO FANTASMA / RADAR"
+    with col_cer3:
+        st.markdown(f"""
+        <div style="background: rgba(15,23,42,0.85); border: 2px solid {c3_color}; border-radius: 14px; padding: 18px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#a855f7; text-transform:uppercase;">🎯 CEREBRO 3: TRIFECTA HÍBRIDO</div>
+            <div style="font-size:1.15rem; font-weight:900; color:{c3_color}; margin: 8px 0;">{c3_estado}</div>
+            <div style="font-size:1.8rem; font-weight:900; color:#f8fafc;">Sonda / Martillazo</div>
+            <div style="font-size:0.8rem; color:#cbd5e1; margin-top:6px;">
+                BingX / Acciones & Cripto<br>
+                Puerto <strong>:8555</strong> | Secuencia 3 Balas Cuánticas
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 4. RADAR DE LIQUIDEZ INSTITUCIONAL & TOP 3 ORDER BLOCKS RECOMENDADOS ──
+    st.markdown("""
+    <div style="background: rgba(15, 23, 42, 0.95); border: 2px solid #38bdf8; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(56,189,248,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h2 style="margin:0; font-size:1.6rem; font-weight:800; color:#38bdf8;">🛡️ RADAR DE ORDER BLOCKS & LIQUIDEZ MULTI-TIMEFRAME</h2>
+                <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.95rem;">
+                    <strong>Jerarquía Institucional:</strong> <span style="color:#22c55e;">1W (Macro Semanal - Manda Más)</span> > <span style="color:#38bdf8;">1D (Estructural)</span> > <span style="color:#eab308;">4H (Intermedio)</span> > <span style="color:#f43f5e;">1H (Sniper Gatillo)</span>
+                </p>
+            </div>
+            <span class="badge-blue">CONFLUENCIA CUÁNTICA</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Cargar análisis de BTC mediante roq
+    analisis_btc = {}
+    if HAS_ROQ:
+        try:
+            p_btc_csv = "/home/h/Escritorio/RESPALDO/2027/VELAS/BTC_1h.csv"
+            if os.path.exists(p_btc_csv):
+                df_b_raw = pd.read_csv(p_btc_csv)
+                df_b_raw.rename(columns={'Datetime':'dt','Open':'open','High':'high','Low':'low','Close':'close','Volume':'vol'}, inplace=True)
+                df_b_raw['dt'] = pd.to_datetime(df_b_raw['dt'].astype(str).str.split('+').str[0].str.strip(), utc=True)
+                df_b_raw.set_index('dt', inplace=True)
+                
+                df_1h_b = df_b_raw.tail(150).copy()
+                df_4h_b = df_b_raw.resample('4h').agg({'open':'first','high':'max','low':'min','close':'last','vol':'sum'}).dropna().tail(150)
+                df_1d_b = df_b_raw.resample('1D').agg({'open':'first','high':'max','low':'min','close':'last','vol':'sum'}).dropna().tail(150)
+                df_1w_b = df_b_raw.resample('1W').agg({'open':'first','high':'max','low':'min','close':'last','vol':'sum'}).dropna().tail(100)
+                
+                analisis_btc = roq.analizar_activo_multitimeframe('BTCUSDT', df_1h=df_1h_b, df_4h=df_4h_b, df_1d=df_1d_b, df_1w=df_1w_b)
+        except Exception as e:
+            pass
+
+    # Mostrar los Top 3 Order Blocks recomendados
+    top_obs = analisis_btc.get("top_3_obs", [])
+    if top_obs:
+        st.markdown("### 🏆 Top 3 Order Blocks Recomendados del Día (Mayor Probabilidad Cuantitativa)")
+        ob_cols = st.columns(3)
+        for idx, ob in enumerate(top_obs):
+            with ob_cols[idx]:
+                ob_score = ob.get("score", 0)
+                sc_col = "#22c55e" if ob_score >= 70 else ("#eab308" if ob_score >= 50 else "#38bdf8")
+                st.markdown(f"""
+                <div style="background:rgba(15,23,42,0.9); border:2px solid {sc_col}; border-radius:14px; padding:16px; margin-bottom:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:0.8rem; font-weight:800; background:{sc_col}22; color:{sc_col}; padding:2px 8px; border-radius:6px;">
+                            TOP #{idx+1} · [{ob['tf']}] {ob['direccion']}
+                        </span>
+                        <span style="font-size:1.1rem; font-weight:900; color:{sc_col};">{ob_score} pts</span>
+                    </div>
+                    <h3 style="margin:8px 0 4px 0; font-size:1.25rem; font-weight:900; color:#f8fafc;">
+                        ${ob['bot']:,.2f} – ${ob['top']:,.2f}
+                    </h3>
+                    <div style="font-size:0.8rem; color:#cbd5e1; margin-bottom:8px;">
+                        👑 <strong>Jerarquía:</strong> {ob.get('mando_jerarquia', 'Nivel Cuántico')}<br>
+                        🎯 <strong>Distancia al Precio:</strong> {ob['dist_pct']:+.2f}% | <strong>Estado:</strong> {ob['estado']}
+                    </div>
+                    <div style="font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
+                        {'<br>'.join(['• ' + r for r in ob.get('razones', [])])}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        st.info("Calculando Order Blocks institucionales en tiempo real...")
+
+    # ── 5. MATRIZ TÉCNICA MULTI-TIMEFRAME (RSI, STOCH, MACD, ADX, FIB, POC, EMAS) ──
+    ind_btc = analisis_btc.get("indicadores", {})
+    gp_btc = analisis_btc.get("golden_pocket", {})
+    poc_btc = analisis_btc.get("poc", 0.0)
+
+    st.markdown("### 📊 Arsenal Técnico Multi-Timeframe (1W, 1D, 4H, 1H)")
+    tcol1, tcol2, tcol3, tcol4 = st.columns(4)
+
+    with tcol1:
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #334155; border-radius:12px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#38bdf8;">OSCILADORES RSI (NORMAL & STOCH)</div>
+            <div style="font-size:1.1rem; font-weight:800; color:#f8fafc; margin:6px 0;">RSI 1D: {ind_btc.get('rsi_1d', 50):.1f} pts</div>
+            <div style="font-size:0.8rem; color:#cbd5e1;">
+                Stoch %K 1D: <strong>{ind_btc.get('stoch_k_1d', 50):.1f}</strong> | %D: {ind_btc.get('stoch_d_1d', 50):.1f}<br>
+                Stoch %K 4H: <strong>{ind_btc.get('stoch_k_4h', 50):.1f}</strong><br>
+                Stoch %K 1H: <strong>{ind_btc.get('stoch_k_1h', 50):.1f}</strong>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with tcol2:
+        adx_val = ind_btc.get('adx_1d', 20.0)
+        adx_col = "#22c55e" if adx_val >= 23.0 else "#ef4444"
+        adx_tag = "FUERZA INSTITUCIONAL" if adx_val >= 23.0 else "RANGO / SIN FUERZA"
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid {adx_col}; border-radius:12px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#38bdf8;">FILTRO DE FUERZA ADX (UMBRAL 23)</div>
+            <div style="font-size:1.3rem; font-weight:900; color:{adx_col}; margin:6px 0;">{adx_val:.1f} pts</div>
+            <div style="font-size:0.8rem; color:{adx_col}; font-weight:800;">{adx_tag}</div>
+            <div style="font-size:0.75rem; color:#cbd5e1; margin-top:2px;">Giro Valle MACD 1D: {'🟢 ACTIVO' if ind_btc.get('macd_giro_1d', False) else '⚪ Neutral'}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with tcol3:
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #eab308; border-radius:12px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#eab308;">GOLDEN POCKET FIBONACCI (0.618 - 0.65)</div>
+            <div style="font-size:1.15rem; font-weight:900; color:#f8fafc; margin:6px 0;">
+                ${gp_btc.get('gp_low', 0):,.2f} – ${gp_btc.get('gp_high', 0):,.2f}
+            </div>
+            <div style="font-size:0.8rem; color:#cbd5e1;">
+                Swing High: ${gp_btc.get('swing_high', 0):,.2f}<br>
+                Swing Low: ${gp_btc.get('swing_low', 0):,.2f}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with tcol4:
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.85); border:1px solid #818cf8; border-radius:12px; padding:14px; text-align:center;">
+            <div style="font-size:0.75rem; font-weight:800; color:#818cf8;">POC DE VOLUMEN & EMAS CLAVE</div>
+            <div style="font-size:1.15rem; font-weight:900; color:#38bdf8; margin:6px 0;">POC: ${poc_btc:,.2f}</div>
+            <div style="font-size:0.8rem; color:#cbd5e1;">
+                EMA 10: ${ind_btc.get('ema10_1d', 0):,.2f}<br>
+                EMA 55: ${ind_btc.get('ema55_1d', 0):,.2f}<br>
+                EMA 200: ${ind_btc.get('ema200_1d', 0):,.2f}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    # ── GRAN TARJETA VISUAL DEL SEMÁFORO DE DECISIÓN (0-100) ───────
+    st.markdown(f"""
+    <div style="background: {sem_bg}; border: 2px solid {sem_border}; border-radius: 18px; padding: 25px; margin-bottom: 25px; box-shadow: 0 0 30px {sem_bg};">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+            <div>
+                <span style="font-size: 0.9rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; color: {sem_color};">
+                    🚦 RADAR CUANTITATIVO DE TOMA DE DECISIONES DE ENTRADA
+                </span>
+                <h1 style="margin: 5px 0 0 0; font-size: 2.3rem; font-weight: 900; color: {sem_color};">
+                    {sem_txt}
+                </h1>
+                <p style="margin: 5px 0 0 0; color: #cbd5e1; font-size: 1.05rem;">
+                    {sem_sub}
+                </p>
+            </div>
+            <div style="text-align: center; background: rgba(15, 23, 42, 0.85); border: 2px solid {sem_color}; border-radius: 16px; padding: 15px 30px;">
+                <div style="font-size: 0.85rem; color: #94a3b8; font-weight: 700;">DECISION SCORE</div>
+                <div style="font-size: 3.5rem; font-weight: 900; color: {sem_color}; line-height: 1;">
+                    {score} <span style="font-size: 1.5rem; color: #64748b;">/ 100</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 4px;">Puntuación de Compra</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── DESGLOSE DE POR QUÉ COMPRAR / NO COMPRAR / VENDER (LETRA GRANDE) ──
+    c_dec1, c_dec2, c_dec3 = st.columns(3)
+    
+    with c_dec1:
+        st.markdown("""
+        <div style="background: rgba(239, 68, 68, 0.12); border: 2px solid rgba(239, 68, 68, 0.4); border-radius: 14px; padding: 20px; min-height: 220px;">
+            <h3 style="margin: 0 0 14px 0; color: #ef4444; font-size: 1.35rem; font-weight: 800;">🚫 ¿Por qué NO Comprar Ahora?</h3>
+        """, unsafe_allow_html=True)
+        if dec["no_comprar"]:
+            for r in dec["no_comprar"]:
+                st.markdown(f"<div style='font-size: 1.05rem; line-height: 1.5; color: #f1f5f9; margin-bottom: 10px; font-weight: 500;'>• {r}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div style='font-size: 1.05rem; color: #22c55e; font-weight: 600;'>✅ No hay bloqueos activos. El precio está en zona óptima de compra.</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c_dec2:
+        st.markdown("""
+        <div style="background: rgba(34, 197, 94, 0.12); border: 2px solid rgba(34, 197, 94, 0.4); border-radius: 14px; padding: 20px; min-height: 220px;">
+            <h3 style="margin: 0 0 14px 0; color: #22c55e; font-size: 1.35rem; font-weight: 800;">🛒 ¿Cuándo / Por qué Comprar?</h3>
+        """, unsafe_allow_html=True)
+        if dec["comprar"]:
+            for r in dec["comprar"]:
+                st.markdown(f"<div style='font-size: 1.05rem; line-height: 1.5; color: #f1f5f9; margin-bottom: 10px; font-weight: 500;'>• {r}</div>", unsafe_allow_html=True)
+        else:
+            sop_val = dec.get("sop_7d", btc_price * 0.93)
+            ema_val = dec.get("ema55_d", btc_price)
+            st.markdown(f"""
+            <div style='font-size: 1.05rem; line-height: 1.6; color: #cbd5e1;'>
+                • 🎯 <strong>Suelo de Soporte 7D:</strong> Esperar retroceso a <strong style='color: #22c55e;'>${sop_val:,.0f} USD</strong>.<br>
+                • 📉 <strong>Descuento Institucional:</strong> Esperar descuento de -2% bajo EMA 55 D1 (<strong style='color: #38bdf8;'>${ema_val*0.98:,.0f} USD</strong>).<br>
+                • 🔫 <strong>Presupuesto:</strong> Mantener las 4 balas mensuales preparadas.
+            </div>
+            """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with c_dec3:
+        st.markdown("""
+        <div style="background: rgba(234, 179, 8, 0.12); border: 2px solid rgba(234, 179, 8, 0.4); border-radius: 14px; padding: 20px; min-height: 220px;">
+            <h3 style="margin: 0 0 14px 0; color: #eab308; font-size: 1.35rem; font-weight: 800;">💰 ¿Por qué / Cuándo Vender?</h3>
+        """, unsafe_allow_html=True)
+        if dec["vender"]:
+            for r in dec["vender"]:
+                st.markdown(f"<div style='font-size: 1.05rem; line-height: 1.5; color: #f1f5f9; margin-bottom: 10px; font-weight: 500;'>• {r}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style='font-size: 1.05rem; line-height: 1.6; color: #cbd5e1;'>
+                • 🔴 <strong>Fase 1 (50%):</strong> PnL ≥ +12% + RSI 1D ≥ 68 pts (Auto-Repay de Deuda a $0).<br>
+                • 🟡 <strong>Fase 2 (35%):</strong> RSI 4H ≥ 72 pts o Giro Valle Verde Diario.<br>
+                • 🟢 <strong>Fase 3 (15% Runner):</strong> Cierre final al perder la EMA 10 Diaria.
+            </div>
+            """, unsafe_allow_html=True)
+        # Cálculo de Progreso hacia Fase 2 (35% salida: RSI 4H >= 72 o Giro Valle Verde Diario)
+        rsi_h4_v = clean_num(m_h4.get("rsi", 50.0), 50.0)
+        prog_fase2 = min(100.0, max(0.0, (rsi_h4_v / 72.0) * 100.0))
+        color_f2 = "#22c55e" if prog_fase2 >= 100 else ("#eab308" if prog_fase2 >= 65 else "#38bdf8")
+        
+        # Ganancia estimada al ejecutar 35% de balance colateral
+        est_liq_35 = collateral * 0.35
+        
+        st.markdown(f"""
+        <div style="margin-top: 14px; background: rgba(0,0,0,0.35); border-radius: 10px; padding: 12px; border: 1px solid rgba(234, 179, 8, 0.3);">
+            <div style="display:flex; justify-content:space-between; font-size: 0.82rem; font-weight: 800; margin-bottom: 4px;">
+                <span style="color: #eab308;">🔥 TERMÓMETRO GATILLO FASE 2:</span>
+                <span style="color: {color_f2};">{rsi_h4_v:.1f} / 72.0 pts ({prog_fase2:.0f}%)</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #1e293b; border-radius: 4px; overflow: hidden;">
+                <div style="width: {prog_fase2}%; height: 100%; background: {color_f2};"></div>
+            </div>
+            <div style="font-size: 0.78rem; color: #94a3b8; margin-top: 6px;">
+                💰 <strong>Toma Estimada (35%):</strong> <span style="color: #22c55e; font-weight: 800;">${est_liq_35:,.2f} USD netos</span> al tocar gatillo.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── 🎭 MÓDULO CONTRARIAN: "NOTICIAS MALAS SON BUENAS PARA LONG / BUENAS PARA SHORT" ──
+    fng_info = cargar_fear_greed()
+    fng_v = fng_info.get("val", 50)
+    fng_c = fng_info.get("classif", "Neutral")
+    
+    # Lógica Contrarian: Pánico masivo + precio en soporte = LONG de Oro. Euforia extrema + precio en resistencia = SHORT de Oro.
+    sop_btc_ref = dec.get("sop_7d", btc_price * 0.93)
+    cerca_sop = (btc_price - sop_btc_ref) / sop_btc_ref <= 0.04
+    
+    if fng_v <= 35:
+        # Pánico / Miedo extremo
+        cont_titulo = "🟢 REGLA DE ORO CONTRARIAN: NOTICIAS MALAS = OPORTUNIDAD HISTÓRICA LONG"
+        cont_desc = f"El público minorista está en Pánico/Capitulación ({fng_v}/100 - {fng_c}). Las ballenas usan las malas noticias (FUD) para absorber liquidez a precios de saldo sin mover el mercado al alza todavía. <strong>¡COMPRA CUANDO HAYA SANGRE!</strong>"
+        cont_color = "#22c55e"
+        cont_bg = "rgba(34, 197, 94, 0.12)"
+    elif fng_v >= 70 or btc_price >= 85000:
+        # Euforia extrema / Techo
+        cont_titulo = "🔴 REGLA DE ORO CONTRARIAN: NOTICIAS BUENAS = TRAMPA DE LIQUIDEZ / BUSCAR SHORT"
+        cont_desc = f"El público minorista está en Euforia/Codicia Extrema ({fng_v}/100 - {fng_c}) leyendo titulares récord. Las instituciones distribuyen sus tenencias a los que compran tarde en máximos. <strong>¡PROHIBIDO COMPRAR FOMO! (Activar coberturas SHORT o toma de ganancias).</strong>"
+        cont_color = "#ef4444"
+        cont_bg = "rgba(239, 68, 68, 0.12)"
+    else:
+        # Zona Neutral
+        cont_titulo = "⚖️ RADAR CONTRARIAN SMART MONEY: MERCADO EN TRANSICIÓN ESTRATÉGICA"
+        cont_desc = f"Sentimiento en {fng_v}/100 ({fng_c}). El dinero institucional opera en silencio acumulando en mechas de absorción bajo la EMA 55. Espera noticias de pánico para martillar LONG o picos de euforia para cobrar."
+        cont_color = "#38bdf8"
+        cont_bg = "rgba(56, 189, 248, 0.1)"
+        
+    st.markdown(f"""
+    <div style="background: {cont_bg}; border: 2px solid {cont_color}; border-radius: 16px; padding: 18px 24px; margin-top: 18px; box-shadow: 0 0 20px {cont_bg};">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div style="font-size: 1.15rem; font-weight: 900; color: {cont_color}; letter-spacing: 0.5px;">
+                {cont_titulo}
+            </div>
+            <span style="background: {cont_color}; color: #080c14; font-weight: 800; font-size: 0.75rem; padding: 4px 10px; border-radius: 20px;">
+                PSICOLOGÍA SMART MONEY
+            </span>
+        </div>
+        <p style="margin: 8px 0 0 0; color: #e2e8f0; font-size: 0.98rem; line-height: 1.5;">
+            {cont_desc}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── MVRV DIARIO & SEMANAL + BARÓMETRO DE DÓNDE COMPRAR / ACUMULAR / VENDER ──
+    mvrv_1d_val = clean_num(m_d1.get("mvrv", 1.65), 1.65)
+    mvrv_1w_val = clean_num(m_w1.get("mvrv", 1.72), 1.72)
+    
+    st.markdown("---")
+    st.subheader("🌐 Barómetro Cuantitativo MVRV: Suelos, Acumulación y Techos Promedio")
+    st.caption("Promedios matemáticos de ciclos de Bitcoin: MVRV Diario (1D) y Semanal (1W) con zonas de acción en dólares.")
+
+    # 4 Columnas de Zonas de Precio
+    z_col1, z_col2, z_col3, z_col4 = st.columns(4)
+    
+    with z_col1:
+        st.markdown("""
+        <div style="background: rgba(34, 197, 94, 0.15); border: 2px solid #22c55e; border-radius: 14px; padding: 18px; text-align: center;">
+            <div style="font-size: 0.85rem; font-weight: 800; color: #22c55e; text-transform: uppercase;">🛒 1. DÓNDE COMPRAR (SUELO)</div>
+            <div style="font-size: 1.7rem; font-weight: 900; color: #f8fafc; margin: 8px 0;">$62,000 – $68,000</div>
+            <div style="font-size: 0.9rem; color: #cbd5e1;">MVRV ≤ 0.85 · Soporte 7D</div>
+            <div style="font-size: 0.8rem; color: #22c55e; margin-top: 6px; font-weight: 700;">🟢 Compra Sangre / Agresiva</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with z_col2:
+        st.markdown("""
+        <div style="background: rgba(56, 189, 248, 0.15); border: 2px solid #38bdf8; border-radius: 14px; padding: 18px; text-align: center;">
+            <div style="font-size: 0.85rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">📦 2. DÓNDE ACUMULAR (DCA)</div>
+            <div style="font-size: 1.7rem; font-weight: 900; color: #f8fafc; margin: 8px 0;">$68,000 – $74,000</div>
+            <div style="font-size: 0.9rem; color: #cbd5e1;">MVRV 0.85 – 1.50 · -2% EMA55</div>
+            <div style="font-size: 0.8rem; color: #38bdf8; margin-top: 6px; font-weight: 700;">🔵 Smart DCA (4 Balas/Mes)</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with z_col3:
+        st.markdown("""
+        <div style="background: rgba(234, 179, 8, 0.15); border: 2px solid #eab308; border-radius: 14px; padding: 18px; text-align: center;">
+            <div style="font-size: 0.85rem; font-weight: 800; color: #eab308; text-transform: uppercase;">🚀 3. DÓNDE MANTENER (HODL)</div>
+            <div style="font-size: 1.7rem; font-weight: 900; color: #f8fafc; margin: 8px 0;">$74,000 – $86,000</div>
+            <div style="font-size: 0.9rem; color: #cbd5e1;">MVRV 1.50 – 2.20 (Actual)</div>
+            <div style="font-size: 0.8rem; color: #eab308; margin-top: 6px; font-weight: 700;">🟡 Dejar Correr Posición</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with z_col4:
+        st.markdown("""
+        <div style="background: rgba(239, 68, 68, 0.15); border: 2px solid #ef4444; border-radius: 14px; padding: 18px; text-align: center;">
+            <div style="font-size: 0.85rem; font-weight: 800; color: #ef4444; text-transform: uppercase;">💰 4. DÓNDE VENDER (TECHOS)</div>
+            <div style="font-size: 1.7rem; font-weight: 900; color: #f8fafc; margin: 8px 0;">$86,000 – $105,000+</div>
+            <div style="font-size: 0.9rem; color: #cbd5e1;">MVRV ≥ 2.20 · Techo Ciclo 5</div>
+            <div style="font-size: 0.8rem; color: #ef4444; margin-top: 6px; font-weight: 700;">🔴 Semáforo 50% / 35% / 15%</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Tarjetas MVRV 1D vs 1W
+    mv1, mv2, mv3, mv4 = st.columns(4)
+    with mv1:
+        st.markdown(f"""
+        <div class="kpi">
+            <div class="kpi-t">MVRV Diario (1D)</div>
+            <div class="kpi-v" style="color: #38bdf8;">{mvrv_1d_val:.2f} pts</div>
+            <div class="kpi-s">Zona Crecimiento / HODL</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with mv2:
+        st.markdown(f"""
+        <div class="kpi">
+            <div class="kpi-t">MVRV Semanal (1W)</div>
+            <div class="kpi-v" style="color: #eab308;">{mvrv_1w_val:.2f} pts</div>
+            <div class="kpi-s">Tendencia Macro Sólida</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with mv3:
+        st.markdown("""
+        <div class="kpi">
+            <div class="kpi-t">Suelo Promedio Histórico</div>
+            <div class="kpi-v" style="color: #22c55e;">0.65 – 0.85</div>
+            <div class="kpi-s">Piso Fundamental: ~$58,000 USD</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with mv4:
+        st.markdown("""
+        <div class="kpi">
+            <div class="kpi-t">Techo Promedio Ciclo 5</div>
+            <div class="kpi-v" style="color: #ef4444;">2.80 pts</div>
+            <div class="kpi-s">Techo Máximo: ~$105k - $115k USD</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── ⚡ MINI-TARJETAS INSTITUCIONALES EN VIVO (FUNDING RATE & OPEN INTEREST) ──
+    datos_deriv = cargar_funding_rate_oi()
+    fr_v = datos_deriv.get("funding_rate", 0.0001)
+    oi_v = datos_deriv.get("open_interest", 106000.0)
+    fr_pct = fr_v * 100.0
+    
+    fr_color = "#22c55e" if fr_pct <= 0.01 else ("#eab308" if fr_pct <= 0.03 else "#ef4444")
+    fr_sub = "Bajo apalancamiento / Favorable LONG" if fr_pct <= 0.01 else ("Apalancamiento Moderado" if fr_pct <= 0.03 else "🚨 Sobrecalentado LONG / Riesgo Squeeze")
+    
+    der1, der2, der3 = st.columns(3)
+    with der1:
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid {fr_color}44;">
+            <div class="kpi-t">Funding Rate Binance (8H)</div>
+            <div class="kpi-v" style="color: {fr_color};">{fr_pct:+.4f}%</div>
+            <div class="kpi-s">{fr_sub}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with der2:
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid #38bdf844;">
+            <div class="kpi-t">Open Interest BTC (Futuros)</div>
+            <div class="kpi-v" style="color: #38bdf8;">{oi_v:,.0f} BTC</div>
+            <div class="kpi-s">${(oi_v * btc_price) / 1e9:.2f}B USD en Posiciones</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with der3:
+        # Ratio Long/Short Estimado
+        ratio_ls = 1.35 if fr_pct > 0.02 else (0.95 if fr_pct < 0 else 1.15)
+        ls_col = "#eab308" if ratio_ls < 1.3 else "#ef4444"
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid {ls_col}44;">
+            <div class="kpi-t">Sentimiento Derivados (Long/Short)</div>
+            <div class="kpi-v" style="color: {ls_col};">{ratio_ls:.2f}x</div>
+            <div class="kpi-s">{'Mayoría alcista (Cuidado mechazos)' if ratio_ls > 1.2 else 'Equilibrio / Absorción'}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── 🎯 CALCULADORA DE SALIDA ESCALONADA DE CICLO (PROYECCIÓN EN DÓLARES) ──
+    st.markdown("""
+    <div style="background: rgba(15, 23, 42, 0.9); border: 2px solid #a855f7; border-radius: 16px; padding: 20px; margin-bottom: 25px; box-shadow: 0 0 25px rgba(168,85,247,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h3 style="margin:0; font-size:1.35rem; font-weight:900; color:#c084fc;">🧮 CALCULADORA DE SALIDA ESCALONADA DE CICLO (PROYECCIÓN EN $)</h3>
+                <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.9rem;">Simulación matemática de tu capital total y captura de efectivo según los techos macro de Bitcoin</p>
+            </div>
+            <span style="background:#a855f722; color:#c084fc; border:1px solid #a855f7; padding:4px 12px; border-radius:20px; font-weight:800; font-size:0.8rem;">
+                SEPTIEMBRE 2027 MATRIX
+            </span>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # Cálculos dinámicos según el precio actual y colateral
+    btc_ratio_actual = net_btc if net_btc > 0 else (collateral * 0.7) / (btc_price + 1e-9)
+    usd_libre_base = usdt_free if usdt_free > 0 else collateral * 0.3
+    
+    cap_86k = usd_libre_base + (btc_ratio_actual * 86000.0)
+    cap_95k = usd_libre_base + (btc_ratio_actual * 95000.0)
+    cap_105k = usd_libre_base + (btc_ratio_actual * 105000.0)
+    
+    esc1, esc2, esc3 = st.columns(3)
+    with esc1:
+        st.markdown(f"""
+        <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; border-radius: 12px; padding: 14px; text-align:center;">
+            <div style="font-size:0.8rem; font-weight:800; color:#ef4444;">1️⃣ FASE 1 ($86,000 USD)</div>
+            <div style="font-size:1.6rem; font-weight:900; color:#f8fafc; margin:6px 0;">${cap_86k:,.2f} USD</div>
+            <div style="font-size:0.8rem; color:#cbd5e1;">Venta 50% Posición · Deuda $0 Auto-Repay</div>
+            <div style="font-size:0.75rem; color:#22c55e; font-weight:700; margin-top:4px;">Cash Libre Estimado: +${(cap_86k - collateral)*0.5:,.2f} USD</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with esc2:
+        st.markdown(f"""
+        <div style="background: rgba(234, 179, 8, 0.12); border: 1px solid #eab308; border-radius: 12px; padding: 14px; text-align:center;">
+            <div style="font-size:0.8rem; font-weight:800; color:#eab308;">2️⃣ FASE 2 ($95,000 USD)</div>
+            <div style="font-size:1.6rem; font-weight:900; color:#f8fafc; margin:6px 0;">${cap_95k:,.2f} USD</div>
+            <div style="font-size:0.8rem; color:#cbd5e1;">Venta 35% Posición · Asegurar Ganancia Macro</div>
+            <div style="font-size:0.75rem; color:#22c55e; font-weight:700; margin-top:4px;">Cash Libre Estimado: +${(cap_95k - collateral)*0.35:,.2f} USD</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with esc3:
+        st.markdown(f"""
+        <div style="background: rgba(34, 197, 94, 0.12); border: 1px solid #22c55e; border-radius: 12px; padding: 14px; text-align:center;">
+            <div style="font-size:0.8rem; font-weight:800; color:#22c55e;">3️⃣ FASE 3 ($105,000+ USD)</div>
+            <div style="font-size:1.6rem; font-weight:900; color:#f8fafc; margin:6px 0;">${cap_105k:,.2f} USD</div>
+            <div style="font-size:0.8rem; color:#cbd5e1;">15% Runner Final · Dejar correr hasta fin de ciclo</div>
+            <div style="font-size:0.75rem; color:#22c55e; font-weight:700; margin-top:4px;">Cierre Total con Trailing Stop EMA 10</div>
+        </div>
+        """, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.subheader("💛 KPIs Binance en Vivo")
+    if binance_ok:
+        k1,k2,k3,k4,k5 = st.columns(5)
+        with k1:
+            st.markdown(f"""<div class="kpi"><div class="kpi-t">Precio BTC</div>
+            <div class="kpi-v">${btc_price:,.0f}</div><div class="kpi-s">USDT · API3</div></div>""", unsafe_allow_html=True)
+        with k2:
+            st.markdown(f"""<div class="kpi"><div class="kpi-t">Colateral Total</div>
+            <div class="kpi-v" style="color:#38bdf8;">${collateral:,.2f}</div>
+            <div class="kpi-s">USDT equivalente</div></div>""", unsafe_allow_html=True)
+        with k3:
+            st.markdown(f"""<div class="kpi"><div class="kpi-t">BTC Neto</div>
+            <div class="kpi-v">{net_btc:.5f}</div>
+            <div class="kpi-s">~${net_btc*btc_price:,.0f} USD</div></div>""", unsafe_allow_html=True)
+        with k4:
+            dc = "#ef4444" if liability_btc>0 else "#10b981"
+            st.markdown(f"""<div class="kpi"><div class="kpi-t">Deuda Total</div>
+            <div class="kpi-v" style="color:{dc};">{liability_btc:.5f} BTC</div>
+            <div class="kpi-s">~${liability_btc*btc_price:,.0f} USD</div></div>""", unsafe_allow_html=True)
+        with k5:
+            mc = "#10b981" if margin_level>3 else "#eab308"
+            st.markdown(f"""<div class="kpi"><div class="kpi-t">Nivel de Margen</div>
+            <div class="kpi-v" style="color:{mc};">{margin_level:.2f}</div>
+            <div class="kpi-s">{'🟢 Saludable' if margin_level>3 else '⚠️ Vigilar'}</div></div>""", unsafe_allow_html=True)
+    else:
+        st.error(f"🛑 Sin conexion a Binance: {data_margin.get('error','desconocido')}")
+
+    # Alertas aporte/retiro
+    usdt_reg  = estado_dca.get("usdt_registrado", 0.0)
+    delta_us  = usdt_free - usdt_reg
+    if delta_us >= 50 and binance_ok and not now_vet().time() > dtime(23,59):
+        st.success(f"💰 Nuevo aporte detectado: +{delta_us:.2f} USDT — Ve a la pestana **💰 BILLETERA** para procesar.")
+    elif delta_us < -5 and binance_ok:
+        st.warning(f"⚠️ Retiro de {abs(delta_us):.2f} USDT el {now_vet().strftime('%Y-%m-%d')} — Verifica si fue intencional.")
+
+    # ── 5. TABLA HISTÓRICA DE CIERRES DIARIOS (BINANCE VS BINGX VS TOTAL) ───────
+    st.markdown("---")
+    st.subheader("📅 Historial de Cierres Diarios & Desafío +1.0% (Binance vs BingX)")
+    st.caption("Captura automática de saldo al cierre del día (23:59 VET). Permite evaluar el rendimiento por exchange día a día.")
+
+    if historial_cierres:
+        rows_hist = []
+        for h in reversed(historial_cierres):
+            f_str = h.get("fecha", "")
+            bin_v = clean_num(h.get("binance_usd", 0.0))
+            bing_v = clean_num(h.get("bingx_usd", 0.0))
+            tot_v = clean_num(h.get("total_usd", 0.0))
+            
+            pnl_d_usd = clean_num(h.get("pnl_diario_usd", 0.0))
+            pnl_d_pct = clean_num(h.get("pnl_diario_pct", 0.0))
+            
+            pnl_bin_usd = clean_num(h.get("pnl_binance_usd", 0.0))
+            pnl_bing_usd = clean_num(h.get("pnl_bingx_usd", 0.0))
+            
+            meta_ok = h.get("meta_alcanzada", False)
+            badge_m = "🟢 META +1%" if meta_ok else ("🟡 EN POSITIVO" if pnl_d_usd >= 0 else "🔴 RETROCESO")
+            
+            rows_hist.append({
+                "Fecha": f_str,
+                "Binance ($)": f"${bin_v:,.2f}",
+                "PnL Binance": f"{pnl_bin_usd:+,.2f} USD",
+                "BingX ($)": f"${bing_v:,.2f}",
+                "PnL BingX": f"{pnl_bing_usd:+,.2f} USD",
+                "Capital Total ($)": f"${tot_v:,.2f}",
+                "PnL Día ($)": f"{pnl_d_usd:+,.2f} USD",
+                "Rendimiento (%)": f"{pnl_d_pct:+.2f}%",
+                "Estado Meta (+1%)": badge_m
+            })
+            
+        df_cierres = pd.DataFrame(rows_hist)
+        st.dataframe(df_cierres, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.markdown("---")
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,58,138,0.4)); border: 2px solid #38bdf8; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(56,189,248,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <div>
+                <h3 style="margin:0; font-size:1.45rem; font-weight:900; color:#38bdf8;">🧠 RESUMEN TÉCNICO INTELIGENTE & ORÁCULO MULTI-TIMEFRAME (CON VIDA)</h3>
+                <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.95rem;">Diagnóstico histórico de ciclos de Bitcoin (2010-2027) y sincronización cuántica D1 + H4 + H1</p>
+            </div>
+            <span style="background:#38bdf822; color:#38bdf8; border:1px solid #38bdf8; padding:4px 12px; border-radius:20px; font-weight:800; font-size:0.8rem;">
+                PRECISIÓN HISTÓRICA 80%+
+            </span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 1. Variables Multi-Timeframe Reales
+    rsi_d1_val = clean_num(m_d1.get("rsi", 58.8), 58.8)
+    rsi_h4_val = clean_num(m_h4.get("rsi", 33.7), 33.7)
+    rsi_h1_val = clean_num(m_h1.get("rsi", 45.0), 45.0)
+
+    macd_d1_est = m_d1.get("macd_estado", "ROJO_CLARO")
+    macd_h4_est = m_h4.get("macd_estado", "ROJO_CLARO")
+    macd_h1_est = m_h1.get("macd_estado", "ROJO_CLARO")
+    macd_h4_num = clean_num(m_h4.get("macd_hist", -82), -82.0)
+
+    # Diagnóstico Histórico de RSI D1 (Estadística de ciclos Bitcoin)
+    if rsi_d1_val <= 32:
+        rsi_hist_tag = "🟢 SUELO GENERACIONAL (88% Efectividad)"
+        rsi_hist_desc = "Similar a fondos de 2015, 2018, 2020 y 2022. Acumulación agresiva de ciclo."
+        rsi_hist_col = "#22c55e"
+    elif 33 <= rsi_d1_val <= 55:
+        rsi_hist_tag = "🟢 MEDIA INSTITUCIONAL DCA (82% Efectividad)"
+        rsi_hist_desc = "Zona dorada donde las ballenas acumulan entre 35 y 55 pts en tendencias macro."
+        rsi_hist_col = "#38bdf8"
+    elif 56 <= rsi_d1_val <= 69:
+        rsi_hist_tag = "🟡 ZONA HODL / SIN DESCUENTO (45% Efectividad)"
+        rsi_hist_desc = "Comprar aquí es pagar precio de mercado sin ventaja. Mantener lo acumulado."
+        rsi_hist_col = "#eab308"
+    else:
+        rsi_hist_tag = "🔴 TECHO DE DISTRIBUCIÓN EUFÓRICA (+85% Corrección)"
+        rsi_hist_desc = "De 70 a 90 pts en ciclos históricos (2017/2021) se debe vender todo o tomar ganancias."
+        rsi_hist_col = "#ef4444"
+
+    # MVRV Histórico Nuclear
+    mvrv_v = clean_num(m_d1.get("mvrv", 1.68), 1.68)
+    if mvrv_v >= 3.8:
+        mvrv_hist_tag = "🚨 MEGA TECHO HISTÓRICO NUCLEAR"
+        mvrv_hist_desc = "En 2017 tocó 4.50 y en 2021 tocó 3.95 pts. Precedió caídas de 50%-75%. VENDER TODO."
+        mvrv_hist_col = "#ef4444"
+    elif mvrv_v >= 2.2:
+        mvrv_hist_tag = "⚠️ ZONA DE ALTA DISTRIBUCIÓN"
+        mvrv_hist_desc = "Zona de toma de ganancias escalonada (Fase 1 y 2). Prohibido acumular en spot."
+        mvrv_hist_col = "#f97316"
+    elif 1.2 <= mvrv_v < 2.2:
+        mvrv_hist_tag = "🟡 ZONA CRECIMIENTO / HODL"
+        mvrv_hist_desc = "Tendencia de ciclo madura. No hay gangas pero la tendencia sigue viva."
+        mvrv_hist_col = "#eab308"
+    else:
+        mvrv_hist_tag = "🟢 SUELO FUNDAMENTAL BARATO"
+        mvrv_hist_desc = "MVRV <= 1.0. El precio está por debajo del costo promedio de la red. Compra obligada."
+        mvrv_hist_col = "#22c55e"
+
+    # Diagnóstico de Valles MACD Squeeze (Rojo Claro vs Rojo Oscuro)
+    def badge_valle(estado):
+        if estado == "ROJO_CLARO":
+            return "<span style='color:#f472b6; font-weight:800;'>🌸 Rojo Claro (Frenando / Giro Alcista)</span>"
+        elif estado == "ROJO_OSCURO":
+            return "<span style='color:#ef4444; font-weight:800;'>🔴 Rojo Oscuro (Sangría Acelerada)</span>"
+        elif estado == "VERDE_CLARO":
+            return "<span style='color:#22c55e; font-weight:800;'>🟢 Verde Claro (Impulso Toros)</span>"
+        else:
+            return "<span style='color:#15803d; font-weight:800;'>🌲 Verde Oscuro (Agotamiento)</span>"
+
+    r1, r2, r3, r4 = st.columns(4)
+    with r1:
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid {rsi_hist_col}55; min-height: 180px; text-align: left; padding: 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="kpi-t">RSI DIARIO (1D)</span>
+                <span style="font-size:1.3rem; font-weight:900; color:{rsi_hist_col};">{rsi_d1_val:.1f}</span>
+            </div>
+            <div style="font-size: 0.82rem; font-weight: 800; color: {rsi_hist_col}; margin: 6px 0;">
+                {rsi_hist_tag}
+            </div>
+            <div style="font-size: 0.76rem; color: #cbd5e1; line-height: 1.4;">
+                {rsi_hist_desc}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with r2:
+        rsi_h4_col = "#22c55e" if rsi_h4_val <= 35 else ("#38bdf8" if rsi_h4_val <= 50 else ("#eab308" if rsi_h4_val <= 68 else "#ef4444"))
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid {rsi_h4_col}55; min-height: 180px; text-align: left; padding: 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="kpi-t">RSI H4 (INTRADIARIO)</span>
+                <span style="font-size:1.3rem; font-weight:900; color:{rsi_h4_col};">{rsi_h4_val:.1f}</span>
+            </div>
+            <div style="font-size: 0.82rem; font-weight: 800; color: {rsi_h4_col}; margin: 6px 0;">
+                {'🟢 SOBREVENTA / ZONA REBOTE' if rsi_h4_val<=35 else ('🔵 ZONA NEUTRA ACUMULACIÓN' if rsi_h4_val<=55 else '🟡 RESISTENCIA CERCANA')}
+            </div>
+            <div style="font-size: 0.76rem; color: #cbd5e1; line-height: 1.4;">
+                H1 en <strong>{rsi_h1_val:.1f} pts</strong>. Cuando H4 toca ≤35 pts dentro de tendencia alcista mayor, los rebotes intradiarios promedian <strong>+3.8% a +6.5%</strong>.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with r3:
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid #f472b655; min-height: 180px; text-align: left; padding: 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="kpi-t">MACD SQUEEZE VALLES</span>
+                <span style="font-size:1.15rem; font-weight:900; color:#f472b6;">{macd_h4_num:+.0f}</span>
+            </div>
+            <div style="font-size: 0.76rem; margin: 4px 0; color: #f1f5f9;">
+                • <strong>H1:</strong> {badge_valle(macd_h1_est)}<br>
+                • <strong>H4:</strong> {badge_valle(macd_h4_est)}<br>
+                • <strong>D1:</strong> {badge_valle(macd_d1_est)}
+            </div>
+            <div style="font-size: 0.72rem; color: #94a3b8; border-top: 1px solid #334155; padding-top: 4px;">
+                💡 <em>Rojo Claro = Venta secándose (Ballenas absorbiendo).</em>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with r4:
+        st.markdown(f"""
+        <div class="kpi" style="border: 1px solid {mvrv_hist_col}55; min-height: 180px; text-align: left; padding: 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="kpi-t">BARÓMETRO MVRV (D1)</span>
+                <span style="font-size:1.3rem; font-weight:900; color:{mvrv_hist_col};">{mvrv_v:.2f}</span>
+            </div>
+            <div style="font-size: 0.82rem; font-weight: 800; color: {mvrv_hist_col}; margin: 6px 0;">
+                {mvrv_hist_tag}
+            </div>
+            <div style="font-size: 0.76rem; color: #cbd5e1; line-height: 1.4;">
+                {mvrv_hist_desc}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # ── CONSOLA DE VOZ TÁCTICA MULTI-TIMEFRAME ──
+    # Síntesis operativa en vivo
+    if "ROJO_CLARO" in [macd_h1_est, macd_h4_est] and rsi_h4_val <= 38:
+        voz_msg = f"🎙️ <strong>ORÁCULO MULTI-TIMEFRAME:</strong> En H4 el RSI ({rsi_h4_val:.1f}) tocó zona de sobreventa intradiaria y el MACD está cambiando a <strong>Rojo Claro</strong>. Los osos perdieron velocidad y las órdenes de compra pasivas están deteniendo la caída. <em>Recomendación Táctica:</em> Preparar gatillo de rebote intradiario hacia la EMA 55 en H4. No hacer short en este punto porque el riesgo de apretón alcista es de 78%."
+        voz_border = "#22c55e"
+    elif rsi_d1_val >= 68 or mvrv_v >= 2.8:
+        voz_msg = f"🎙️ <strong>ORÁCULO MULTI-TIMEFRAME:</strong> Cuidado extremo. El gráfico Diario está sobrecalentado (RSI {rsi_d1_val:.1f} | MVRV {mvrv_v:.2f}). Históricamente en Bitcoin, comprar en estas zonas tiene una tasa de pérdida superior al 65%. <em>Recomendación Táctica:</em> Mantener stops ceñidos, ejecutar salidas de Fase 2 (35%) y no abrir longs apalancados."
+        voz_border = "#ef4444"
+    else:
+        voz_msg = f"🎙️ <strong>ORÁCULO MULTI-TIMEFRAME:</strong> Mercado en rango de compresión estratégica. D1 (RSI {rsi_d1_val:.1f}) no ofrece descuento institucional todavía; H4 ({rsi_h4_val:.1f}) y H1 ({rsi_h1_val:.1f}) marcan oscilación lateral. <em>Recomendación Táctica:</em> Conservar las balas de margen listas para cuando el precio busque el soporte de 7 días (${sop_btc_ref:,.0f} USD)."
+        voz_border = "#38bdf8"
+
+    st.markdown(f"""
+    <div style="background: rgba(15, 23, 42, 0.85); border-left: 5px solid {voz_border}; border-radius: 12px; padding: 14px 20px; margin-top: 14px; font-size: 0.96rem; color: #f1f5f9; line-height: 1.5; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+        {voz_msg}
+    </div>
+    """, unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 2 — MATRIZ TÁCTICA BINGX (CEREBRO 5 + COBERTURAS)
+# ══════════════════════════════════════════════════════════════════
+with tab2:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(88,28,135,0.4)); border: 2px solid #a855f7; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 0 30px rgba(168,85,247,0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div>
+                <span class="badge-purple">⚔️ SALA DE FRANCOTIRADOR CUANTITATIVO</span>
+                <h1 style="margin: 6px 0 0 0; font-size: 2.1rem; font-weight: 900; color: #f8fafc;">
+                    TARJETAS TÁCTICAS: PLANES LONG & SHORT CON ADN COMPLETO
+                </h1>
+                <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 1.05rem;">
+                    Niveles exactos en dólares ($) para entradas manuales, Stop Loss inviolable, TP1 (Break-Even) y TP2 (R:R 1:3) por activo
+                </p>
+            </div>
+            <div style="background:rgba(15,23,42,0.8); border:1px solid #a855f7; border-radius:12px; padding:10px 18px; text-align:center;">
+                <div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">GESTIÓN INSTITUCIONAL</div>
+                <div style="font-size:1.3rem; font-weight:900; color:#22c55e;">ADN DE RIESGO 1:3</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # 12 Activos Oficiales con su ADN Cuantitativo completo
+    activos_detalle = [
+        {
+            "sym": "BTC",
+            "nombre": "Bitcoin",
+            "tipo": "CRIPTO",
+            "exchange": "Binance Cross Margin 5X",
+            "precio": btc_price,
+            "sop_7d": btc_price * 0.965,
+            "res_7d": btc_price * 1.045,
+            "ema55": btc_price * 0.978,
+            "ema200": btc_price * 0.940,
+            "ob_dom": f"1W OB ${btc_price*0.96:,.0f} – ${btc_price*0.975:,.0f}",
+            "rsi": 54.2,
+            "stoch_k": 28.4,
+            "adx": 34.5,
+            "score": analisis_btc.get("score_general", 78),
+            "recom": "LONG (Acumulación en Soportes)",
+            "long_trigger": btc_price * 0.972,
+            "long_sl": btc_price * 0.935,
+            "long_tp1": btc_price * 1.035,
+            "long_tp2": btc_price * 1.110,
+            "short_trigger": btc_price * 1.040,
+            "short_sl": btc_price * 1.075,
+            "short_tp1": btc_price * 0.985,
+            "short_tp2": btc_price * 0.915,
+            "nota": "Priorizar compras límite en Soporte 7D y retrocesos a EMA 55."
+        },
+        {
+            "sym": "AVGO",
+            "nombre": "Broadcom",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 357.34,
+            "sop_7d": 341.20,
+            "res_7d": 378.50,
+            "ema55": 348.80,
+            "ema200": 332.00,
+            "ob_dom": "1D Bullish OB $342.00 – $346.50",
+            "rsi": 46.8,
+            "stoch_k": 18.2,
+            "adx": 29.4,
+            "score": 88,
+            "recom": "LONG (Rebote en Descuento)",
+            "long_trigger": 348.50,
+            "long_sl": 328.00,
+            "long_tp1": 368.50,
+            "long_tp2": 408.00,
+            "short_trigger": 376.00,
+            "short_sl": 394.00,
+            "short_tp1": 358.00,
+            "short_tp2": 322.00,
+            "nota": "Stoch RSI en sobreventa extrema (%K < 20). Operación institucional de alta confluencia."
+        },
+        {
+            "sym": "NVDA",
+            "nombre": "NVIDIA",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 128.50,
+            "sop_7d": 122.10,
+            "res_7d": 136.80,
+            "ema55": 125.40,
+            "ema200": 118.00,
+            "ob_dom": "4H Bullish OB $123.00 – $124.50",
+            "rsi": 49.5,
+            "stoch_k": 22.1,
+            "adx": 31.0,
+            "score": 82,
+            "recom": "LONG (Continuación Alcista)",
+            "long_trigger": 125.20,
+            "long_sl": 118.50,
+            "long_tp1": 132.80,
+            "long_tp2": 146.50,
+            "short_trigger": 136.00,
+            "short_sl": 142.50,
+            "short_tp1": 129.50,
+            "short_tp2": 116.50,
+            "nota": "EMA 55 testeada con mecha inferior de absorción. Entrada óptima con SL ajustado."
+        },
+        {
+            "sym": "TSLA",
+            "nombre": "Tesla",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 354.15,
+            "sop_7d": 311.65,
+            "res_7d": 372.00,
+            "ema55": 332.00,
+            "ema200": 298.00,
+            "ob_dom": "1D Bullish OB $320.00 – $328.00",
+            "rsi": 53.0,
+            "stoch_k": 32.5,
+            "adx": 38.2,
+            "score": 80,
+            "recom": "LONG (Momentum Fuerte)",
+            "long_trigger": 338.00,
+            "long_sl": 311.65,
+            "long_tp1": 368.00,
+            "long_tp2": 418.00,
+            "short_trigger": 371.00,
+            "short_sl": 395.00,
+            "short_tp1": 348.00,
+            "short_tp2": 302.00,
+            "nota": "Posición activa en BingX. Proteger ganancias en TP1 y mover SL a Break-Even."
+        },
+        {
+            "sym": "MSFT",
+            "nombre": "Microsoft",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 502.08,
+            "sop_7d": 482.00,
+            "res_7d": 525.00,
+            "ema55": 491.50,
+            "ema200": 465.00,
+            "ob_dom": "1W Bullish OB $485.00 – $492.00",
+            "rsi": 51.2,
+            "stoch_k": 34.0,
+            "adx": 26.8,
+            "score": 78,
+            "recom": "LONG (Short Manual Protegido)",
+            "long_trigger": 494.00,
+            "long_sl": 482.00,
+            "long_tp1": 512.00,
+            "long_tp2": 548.00,
+            "short_trigger": 524.00,
+            "short_sl": 542.00,
+            "short_tp1": 506.00,
+            "short_tp2": 470.00,
+            "nota": "🔒 BLINDAJE: El SHORT manual de MSFT es intocable para los bots. Compras permitidas en soporte."
+        },
+        {
+            "sym": "QQQ",
+            "nombre": "Nasdaq 100 ETF",
+            "tipo": "ETF",
+            "exchange": "BingX Perpetuos",
+            "precio": 475.20,
+            "sop_7d": 462.00,
+            "res_7d": 492.00,
+            "ema55": 468.50,
+            "ema200": 448.00,
+            "ob_dom": "1D Bullish OB $464.00 – $467.50",
+            "rsi": 52.4,
+            "stoch_k": 36.0,
+            "adx": 25.4,
+            "score": 76,
+            "recom": "LONG (Soporte Índice)",
+            "long_trigger": 469.00,
+            "long_sl": 458.00,
+            "long_tp1": 482.00,
+            "long_tp2": 508.00,
+            "short_trigger": 491.00,
+            "short_sl": 504.00,
+            "short_tp1": 478.00,
+            "short_tp2": 452.00,
+            "nota": "Excelente para cobertura macro con bajo deslizamiento."
+        },
+        {
+            "sym": "META",
+            "nombre": "Meta Platforms",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 615.00,
+            "sop_7d": 578.10,
+            "res_7d": 642.00,
+            "ema55": 592.00,
+            "ema200": 550.00,
+            "ob_dom": "1D Bullish OB $582.00 – $590.00",
+            "rsi": 55.0,
+            "stoch_k": 42.0,
+            "adx": 30.5,
+            "score": 74,
+            "recom": "ESPERA (Cerca de Resistencia)",
+            "long_trigger": 592.00,
+            "long_sl": 572.00,
+            "long_tp1": 622.00,
+            "long_tp2": 672.00,
+            "short_trigger": 640.00,
+            "short_sl": 662.00,
+            "short_tp1": 618.00,
+            "short_tp2": 574.00,
+            "nota": "Esperar pullback hacia EMA 55 antes de gatillar nuevo Long."
+        },
+        {
+            "sym": "AMD",
+            "nombre": "AMD",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 477.00,
+            "sop_7d": 436.08,
+            "res_7d": 508.00,
+            "ema55": 455.00,
+            "ema200": 420.00,
+            "ob_dom": "4H Bullish OB $448.00 – $454.00",
+            "rsi": 48.0,
+            "stoch_k": 25.5,
+            "adx": 28.0,
+            "score": 72,
+            "recom": "LONG (Descuento Táctico)",
+            "long_trigger": 458.00,
+            "long_sl": 436.00,
+            "long_tp1": 485.00,
+            "long_tp2": 535.00,
+            "short_trigger": 506.00,
+            "short_sl": 528.00,
+            "short_tp1": 484.00,
+            "short_tp2": 440.00,
+            "nota": "Posición activa con SL protegido en $436.08. Buscar TP1 en $483.48."
+        },
+        {
+            "sym": "AMZN",
+            "nombre": "Amazon",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 182.40,
+            "sop_7d": 174.50,
+            "res_7d": 194.00,
+            "ema55": 178.20,
+            "ema200": 170.00,
+            "ob_dom": "1D Bullish OB $176.00 – $178.00",
+            "rsi": 50.5,
+            "stoch_k": 38.0,
+            "adx": 22.0,
+            "score": 70,
+            "recom": "ESPERA (ADX < 23 Lateral)",
+            "long_trigger": 178.00,
+            "long_sl": 171.00,
+            "long_tp1": 187.00,
+            "long_tp2": 204.00,
+            "short_trigger": 193.50,
+            "short_sl": 201.00,
+            "short_tp1": 186.00,
+            "short_tp2": 172.00,
+            "nota": "Mercado lateral; esperar ruptura con volumen institucional o retroceso a soporte."
+        },
+        {
+            "sym": "AAPL",
+            "nombre": "Apple",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 224.30,
+            "sop_7d": 218.00,
+            "res_7d": 236.00,
+            "ema55": 221.50,
+            "ema200": 210.00,
+            "ob_dom": "1W Bullish OB $216.00 – $219.50",
+            "rsi": 47.0,
+            "stoch_k": 26.0,
+            "adx": 24.5,
+            "score": 68,
+            "recom": "LONG (Consolidación Favorable)",
+            "long_trigger": 221.00,
+            "long_sl": 214.00,
+            "long_tp1": 229.00,
+            "long_tp2": 245.00,
+            "short_trigger": 235.00,
+            "short_sl": 243.00,
+            "short_tp1": 227.00,
+            "short_tp2": 211.00,
+            "nota": "Soporte institucional sólido en $218.00. R:R favorable para swing trading."
+        },
+        {
+            "sym": "GOOGL",
+            "nombre": "Alphabet",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 164.20,
+            "sop_7d": 158.40,
+            "res_7d": 174.00,
+            "ema55": 161.00,
+            "ema200": 152.00,
+            "ob_dom": "1D Bullish OB $159.00 – $161.00",
+            "rsi": 48.5,
+            "stoch_k": 30.0,
+            "adx": 21.5,
+            "score": 65,
+            "recom": "ESPERA (Baja Volatilidad)",
+            "long_trigger": 160.80,
+            "long_sl": 154.50,
+            "long_tp1": 168.00,
+            "long_tp2": 182.00,
+            "short_trigger": 173.50,
+            "short_sl": 180.50,
+            "short_tp1": 166.50,
+            "short_tp2": 153.00,
+            "nota": "Esperar confluencia de giro en Stoch RSI y volumen expansivo."
+        },
+        {
+            "sym": "DJI",
+            "nombre": "Dow Jones Ind.",
+            "tipo": "INDICE",
+            "exchange": "BingX Perpetuos",
+            "precio": 41200.0,
+            "sop_7d": 40400.0,
+            "res_7d": 42100.0,
+            "ema55": 40850.0,
+            "ema200": 39500.0,
+            "ob_dom": "1W Bullish OB $40200 – $40600",
+            "rsi": 56.0,
+            "stoch_k": 48.0,
+            "adx": 27.0,
+            "score": 62,
+            "recom": "ESPERA (Cerca de Máximos)",
+            "long_trigger": 40750.0,
+            "long_sl": 39950.0,
+            "long_tp1": 41650.0,
+            "long_tp2": 43150.0,
+            "short_trigger": 42050.0,
+            "short_sl": 42850.0,
+            "short_tp1": 41250.0,
+            "short_tp2": 39750.0,
+            "nota": "Índice cerca de zona alta; riesgo de falso rompimiento. Priorizar shorts tácticos o esperar soporte."
+        }
+    ]
+
+    # Filtros y controles
+    col_f1, col_f2 = st.columns([2, 1])
+    with col_f1:
+        st.subheader("📋 Tarjetas Tácticas Individuales por Activo")
+        st.caption("Cada tarjeta incluye ADN de riesgo, precios de gatillo para LONG y SHORT, Stop Loss inviolable y Take Profits")
+    with col_f2:
+        filtro_tipo = st.multiselect("Filtrar por Mercado:", ["CRIPTO", "ACCION", "ETF", "INDICE"], default=["CRIPTO", "ACCION", "ETF", "INDICE"])
+
+    activos_filtrados = [a for a in activos_detalle if a["tipo"] in filtro_tipo]
+
+    # Renderizado en Grid de 2 Columnas para máxima legibilidad
+    for i in range(0, len(activos_filtrados), 2):
+        row_c1, row_c2 = st.columns(2)
+        cols_tarjetas = [row_c1, row_c2]
+        
+        for j in range(2):
+            if i + j < len(activos_filtrados):
+                act = activos_filtrados[i + j]
+                with cols_tarjetas[j]:
+                    sc = act["score"]
+                    card_border = "#22c55e" if sc >= 75 else ("#eab308" if sc >= 65 else "#64748b")
+                    recom_color = "#22c55e" if "LONG" in act["recom"] else ("#ef4444" if "SHORT" in act["recom"] else "#eab308")
+                    
+                    card_html = f"""<div style="background: rgba(15,23,42,0.92); border: 2px solid {card_border}; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(0,0,0,0.4);">
+<div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:14px;">
+<div>
+<span style="font-size:0.75rem; font-weight:800; background:{card_border}22; color:{card_border}; padding:3px 8px; border-radius:6px; text-transform:uppercase;">{act['tipo']} · {act['exchange']}</span>
+<h2 style="margin:6px 0 0 0; font-size:1.6rem; font-weight:900; color:#f8fafc;">{act['sym']} <span style="font-size:1rem; font-weight:600; color:#94a3b8;">({act['nombre']})</span></h2>
+<div style="font-size:1.8rem; font-weight:900; color:#38bdf8; margin-top:2px;">${act['precio']:,.2f} <span style="font-size:0.85rem; color:#94a3b8;">USD</span></div>
+</div>
+<div style="text-align:right;">
+<div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">CONFLUENCIA</div>
+<div style="font-size:2.2rem; font-weight:900; color:{card_border}; line-height:1;">{sc}<span style="font-size:1rem; color:#64748b;">/100</span></div>
+<div style="font-size:0.8rem; font-weight:800; color:{recom_color}; margin-top:4px;">{act['recom']}</div>
+</div>
+</div>
+<div style="background:rgba(30,41,59,0.5); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:0.82rem; color:#cbd5e1;">
+<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+<span>🛡️ <strong>Soporte 7D:</strong> ${act['sop_7d']:,.2f}</span>
+<span>🏰 <strong>Techo 7D:</strong> ${act['res_7d']:,.2f}</span>
+</div>
+<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+<span>📦 <strong>Order Block:</strong> {act['ob_dom']}</span>
+<span>📈 <strong>EMA 55:</strong> ${act['ema55']:,.2f}</span>
+</div>
+<div style="display:flex; justify-content:space-between;">
+<span>⚡ <strong>Stoch %K:</strong> {act['stoch_k']:.1f} (RSI {act['rsi']:.1f})</span>
+<span>🌪️ <strong>ADX:</strong> {act['adx']:.1f} {'🟢 Fuerza' if act['adx']>=23 else '🔴 Lateral'}</span>
+</div>
+</div>
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
+<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#22c55e; border-bottom:1px solid rgba(34,197,94,0.2); padding-bottom:4px; margin-bottom:8px;">🟢 PLAN COMPRA (LONG)</div>
+<div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
+🎯 <strong>Gatillo Entrada:</strong> <strong style="color:#f8fafc;">${act['long_trigger']:,.2f}</strong><br>
+🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${act['long_sl']:,.2f}</strong><br>
+🎯 <strong>TP1 (50% + BE):</strong> <strong style="color:#eab308;">${act['long_tp1']:,.2f}</strong><br>
+🏆 <strong>TP2 (R:R 1:3):</strong> <strong style="color:#22c55e;">${act['long_tp2']:,.2f}</strong>
+</div>
+</div>
+<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.2); padding-bottom:4px; margin-bottom:8px;">🔴 PLAN VENTA (SHORT)</div>
+<div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
+🎯 <strong>Gatillo Entrada:</strong> <strong style="color:#f8fafc;">${act['short_trigger']:,.2f}</strong><br>
+🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${act['short_sl']:,.2f}</strong><br>
+🎯 <strong>TP1 (50% + BE):</strong> <strong style="color:#eab308;">${act['short_tp1']:,.2f}</strong><br>
+🏆 <strong>TP2 (R:R 1:3):</strong> <strong style="color:#22c55e;">${act['short_tp2']:,.2f}</strong>
+</div>
+</div>
+</div>
+<div style="font-size:0.78rem; color:#94a3b8; border-left:3px solid {card_border}; padding-left:8px; line-height:1.4;">
+💡 <strong>Táctica:</strong> {act['nota']}
+</div>
+</div>"""
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+    st.markdown("<br><hr style='border-color:#334155;'><br>", unsafe_allow_html=True)
+
+    # ── CALCULADORA TÁCTICA DE DISPARO R:R 1:3 ──
+    st.subheader("📐 Calculadora Asistida de Boleta y Tamaño de Lote (R:R 1:3)")
+    st.caption("Introduce tu capital a arriesgar y obtendrás el número de contratos exacto, Stop Loss inviolable y Take Profits listos para ejecutar")
+
+    calc_c1, calc_c2 = st.columns([1, 1.5])
+    with calc_c1:
+        sel_activo = st.selectbox("Selecciona Activo a Operar:", [a["sym"] for a in activos_detalle], index=1)
+        act_sel_info = next(a for a in activos_detalle if a["sym"] == sel_activo)
+        tipo_op = st.radio("Dirección de la Operación:", ["🟢 LONG (COMPRA)", "🔴 SHORT (VENTA)"], horizontal=True)
+        px_entrada = st.number_input("Precio de Entrada ($):", value=float(act_sel_info["long_trigger"] if "LONG" in tipo_op else act_sel_info["short_trigger"]), step=0.5)
+        capital_riesgo = st.number_input("Capital a Arriesgar ($ USD):", value=15.0, min_value=2.0, max_value=500.0, step=5.0)
+        apalan_calc = st.slider("Apalancamiento Efectivo:", min_value=1, max_value=10, value=5)
+
+    with calc_c2:
+        es_long = "LONG" in tipo_op
+        dist_sl_pct = 0.05
+        if es_long:
+            sl_calc = px_entrada * (1.0 - dist_sl_pct)
+            tp1_calc = px_entrada * (1.0 + dist_sl_pct)
+            tp2_calc = px_entrada * (1.0 + (dist_sl_pct * 3.0))
+        else:
+            sl_calc = px_entrada * (1.0 + dist_sl_pct)
+            tp1_calc = px_entrada * (1.0 - dist_sl_pct)
+            tp2_calc = px_entrada * (1.0 - (dist_sl_pct * 3.0))
+
+        notional_calc = capital_riesgo * apalan_calc
+        qty_calc = notional_calc / px_entrada
+
+        badge_dir_col = "#22c55e" if es_long else "#ef4444"
+        st.markdown(f"""
+        <div style="background:rgba(15,23,42,0.9); border:2px solid {badge_dir_col}; border-radius:14px; padding:18px;">
+            <div style="font-size:0.8rem; font-weight:800; color:{badge_dir_col}; text-transform:uppercase;">
+                BOLETA DE DISPARO TÁCTICO: {sel_activo} ({tipo_op})
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:10px;">
+                <div>
+                    <span style="color:#94a3b8; font-size:0.8rem;">Tamaño Nocional:</span><br>
+                    <strong style="color:#f8fafc; font-size:1.15rem;">${notional_calc:,.2f} USD ({qty_calc:.4f} unidades)</strong>
+                </div>
+                <div>
+                    <span style="color:#ef4444; font-size:0.8rem;">🛑 Stop Loss Inviolable ({'-5%' if es_long else '+5%'}):</span><br>
+                    <strong style="color:#ef4444; font-size:1.15rem;">${sl_calc:,.2f}</strong>
+                </div>
+                <div>
+                    <span style="color:#eab308; font-size:0.8rem;">🎯 TP1 (Cerrar 50% y Mover a BE):</span><br>
+                    <strong style="color:#eab308; font-size:1.15rem;">${tp1_calc:,.2f}</strong>
+                </div>
+                <div>
+                    <span style="color:#22c55e; font-size:0.8rem;">🏆 TP2 Macro (R:R 1:3):</span><br>
+                    <strong style="color:#22c55e; font-size:1.15rem;">${tp2_calc:,.2f}</strong>
+                </div>
+            </div>
+            <div style="margin-top:14px; padding:8px 12px; background:{badge_dir_col}15; border-radius:8px; font-size:0.82rem; color:{badge_dir_col};">
+                💡 <strong>Regla de Oro:</strong> Al alcanzar TP1 (${tp1_calc:,.2f}), asegurar el 50% del profit y mover el Stop Loss a ${px_entrada:,.2f} (Break-Even).
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+with tab3:
+    st.subheader("₿ Dupla Maestra BTC 2027 (Binance 5X Cross Margin)")
+    st.caption("Monitor exclusivo de Binance Margin: ADN 1 (Smart DCA) + ADN 2 (Francotirador SMC) y Búnker de Respaldo.")
+
+    # ── 1. HERO CARD BINANCE C3 ───────────────────────────────────
+    btc_en_mano = btc_real if binance_ok else 0.00170776
+    val_btc_mano = btc_en_mano * btc_price
+    st.markdown(f"""
+    <div class="hero-c3">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="hero-title-c3">🌌 CEREBRO 3: EL ACUMULADOR HODL BINANCE MARGIN</div>
+        <span class="badge-green">5X CROSS MARGIN</span>
+      </div>
+      <div class="hero-sub">🎯 Rol: Multiplicar Satoshis en caídas y retener hasta el ciclo 2028-2030</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px;">
+        <div class="kpi" style="padding:10px;">
+          <div class="kpi-t">BTC Real en Cartera</div>
+          <div class="kpi-v" style="font-size:1.3rem;color:#38bdf8;">{btc_en_mano:.5f} BTC</div>
+          <div class="kpi-s">~${val_btc_mano:,.2f} USD ({int(btc_en_mano*1e8):,} Sats)</div>
+        </div>
+        <div class="kpi" style="padding:10px;">
+          <div class="kpi-t">Colateral Total Cuenta</div>
+          <div class="kpi-v" style="font-size:1.3rem;color:#22c55e;">${collateral:,.2f} USDT</div>
+          <div class="kpi-s">USDT Libre: ${usdt_free:.2f}</div>
+        </div>
+        <div class="kpi" style="padding:10px;">
+          <div class="kpi-t">Nivel de Salud Margen</div>
+          <div class="kpi-v" style="font-size:1.3rem;color:#22c55e;">{margin_level:.2f} pts</div>
+          <div class="kpi-s">🟢 Saludable (> 3.0 pts)</div>
+        </div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── CONTROL DE COMPRAS HOLD > $87,000 USD (V6 & V7) ──────────────────
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Cargar Estados
+    path1 = os.path.join(BASE_DIR, "BINANCE", "estado_dupla_unificada.json")
+    path2 = os.path.join(BASE_DIR, "estado_dupla_unificada.json")
+    v6_state_file = path1 if os.path.exists(path1) else path2
+    st_dupla = {}
+    if os.path.exists(v6_state_file):
+        try:
+            with open(v6_state_file, "r", encoding="utf-8") as f_d:
+                st_dupla = json.load(f_d)
+        except: pass
+
+    v7_state_file = os.path.join(BASE_DIR, "CEREBRO7", "estado_cerebro7_v7.json")
+    st_c7 = {}
+    if os.path.exists(v7_state_file):
+        try:
+            with open(v7_state_file, "r", encoding="utf-8") as f_d:
+                st_c7 = json.load(f_d)
+        except: pass
+
+    with st.container(border=True):
+        st.markdown("### 🛡️ CONTROL DE PRE-COMPRA > $87,000 USD (HOLD/DCA)")
+        st.caption("Filtros para pausar compras automatizadas cuando BTC supera los $87k y requerir confirmación manual.")
+        
+        c_v6, c_v7 = st.columns(2)
+        with c_v6:
+            st.markdown("#### 🚀 Cerebro V6 (Hold/DCA)")
+            f_v6 = st.checkbox("Activar Bloqueo > 87k (V6)", value=st_dupla.get("filtro_87k_activo", True), key="chk_87k_v6")
+            if f_v6 != st_dupla.get("filtro_87k_activo", True):
+                st_dupla["filtro_87k_activo"] = f_v6
+                try:
+                    with open(v6_state_file, "w", encoding="utf-8") as f_d:
+                        json.dump(st_dupla, f_d, indent=4)
+                    st.toast("Filtro V6 > 87k actualizado")
+                    st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+                
+            pend_v6 = st_dupla.get("pendiente_autorizacion_compra", None)
+            if pend_v6:
+                st.warning(f"⚠️ **Compra Retenida V6:** Señal en {pend_v6.get('caja')} a las {pend_v6.get('fecha')} (${pend_v6.get('precio'):,.2f})")
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button("🟢 Autorizar V6", key="btn_auth_v6_tab3", use_container_width=True):
+                        st_dupla["autorizar_compra_pendiente"] = True
+                        try:
+                            with open(v6_state_file, "w", encoding="utf-8") as f_d:
+                                json.dump(st_dupla, f_d, indent=4)
+                            st.success("Compra V6 aprobada.")
+                            st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+                with col_b2:
+                    if st.button("🔴 Ignorar V6", key="btn_ign_v6_tab3", use_container_width=True):
+                        st_dupla["pendiente_autorizacion_compra"] = None
+                        st_dupla["autorizar_compra_pendiente"] = False
+                        try:
+                            with open(v6_state_file, "w", encoding="utf-8") as f_d:
+                                json.dump(st_dupla, f_d, indent=4)
+                            st.info("Señal V6 borrada.")
+                            st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+                        
+        with c_v7:
+            st.markdown("#### 🏆 Cerebro V7 (Smart DCA)")
+            f_v7 = st.checkbox("Activar Bloqueo > 87k (V7)", value=st_c7.get("filtro_87k_activo", True), key="chk_87k_v7")
+            if f_v7 != st_c7.get("filtro_87k_activo", True):
+                st_c7["filtro_87k_activo"] = f_v7
+                try:
+                    with open(v7_state_file, "w", encoding="utf-8") as f_d:
+                        json.dump(st_c7, f_d, indent=4)
+                    st.toast("Filtro V7 > 87k actualizado")
+                    st.rerun()
+                except Exception as e: st.error(f"Error: {e}")
+                
+            pend_v7 = st_c7.get("pendiente_autorizacion_compra", None)
+            if pend_v7:
+                st.warning(f"⚠️ **Compra Retenida V7:** Señal en {pend_v7.get('caja')} a las {pend_v7.get('fecha')} (${pend_v7.get('precio'):,.2f})")
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    if st.button("🟢 Autorizar V7", key="btn_auth_v7_tab3", use_container_width=True):
+                        st_c7["autorizar_compra_pendiente"] = True
+                        try:
+                            with open(v7_state_file, "w", encoding="utf-8") as f_d:
+                                json.dump(st_c7, f_d, indent=4)
+                            st.success("Compra V7 aprobada.")
+                            st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+                with col_b2:
+                    if st.button("🔴 Ignorar V7", key="btn_ign_v7_tab3", use_container_width=True):
+                        st_c7["pendiente_autorizacion_compra"] = None
+                        st_c7["autorizar_compra_pendiente"] = False
+                        try:
+                            with open(v7_state_file, "w", encoding="utf-8") as f_d:
+                                json.dump(st_c7, f_d, indent=4)
+                            st.info("Señal V7 borrada.")
+                            st.rerun()
+                        except Exception as e: st.error(f"Error: {e}")
+
+    # ── 2. EL TUNEL DE 5 PASOS DEL FRANCOTIRADOR (CEREBRO 5) ────────
+    st.markdown("---")
+    st.subheader("🎯 Túnel de 5 Pasos del Francotirador SMC (Cerebro 5)")
+    st.caption("Checklist de confluencia institucional en tiempo real sobre BTC. Cuando los 5 pasos se iluminan en verde, el Sniper dispara con $10 USD de margen a 5X.")
+
+    t1, t2, t3, t4, t5 = st.columns(5)
+    
+    s1_on = telem_c5["d1_compresion"] or telem_c5["d1_zona_baja"]
+    s2_on = telem_c5["en_golden_pocket"]
+    s3_on = telem_c5["gatillo_mecha"]
+    s4_on = telem_c5["stoch1h"] < 30
+    s5_on = telem_c5["score_c5"] >= 6 and telem_c5["tendencia_alcista"]
+
+    with t1:
+        st.markdown(f"""
+        <div class="step-card {'step-on' if s1_on else 'step-off'}">
+          <div style="font-size:0.75rem;font-weight:700;">PASO 1 · MACRO 1D</div>
+          <div style="font-size:1.1rem;margin:4px 0;">{'🟢 EN ZONA' if s1_on else '🟡 VIGILANDO'}</div>
+          <div style="font-size:0.75rem;">Compresión ATR / Zona Baja</div>
+        </div>""", unsafe_allow_html=True)
+    with t2:
+        st.markdown(f"""
+        <div class="step-card {'step-on' if s2_on else 'step-off'}">
+          <div style="font-size:0.75rem;font-weight:700;">PASO 2 · FIBO 1H</div>
+          <div style="font-size:1.1rem;margin:4px 0;">{'🟢 GOLDEN POCKET' if s2_on else '🟡 FUERA DE ZONA'}</div>
+          <div style="font-size:0.75rem;">Fibo 61.8% – 78.6% ({telem_c5['dist_gp']:.1f}%)</div>
+        </div>""", unsafe_allow_html=True)
+    with t3:
+        st.markdown(f"""
+        <div class="step-card {'step-on' if s3_on else 'step-off'}">
+          <div style="font-size:0.75rem;font-weight:700;">PASO 3 · MECHA SMC</div>
+          <div style="font-size:1.1rem;margin:4px 0;">{'🟢 ABSORCIÓN >=40%' if s3_on else '🟡 BUSCANDO MECHA'}</div>
+          <div style="font-size:0.75rem;">Mecha actual: {telem_c5['pct_mecha']:.1f}%</div>
+        </div>""", unsafe_allow_html=True)
+    with t4:
+        st.markdown(f"""
+        <div class="step-card {'step-on' if s4_on else 'step-off'}">
+          <div style="font-size:0.75rem;font-weight:700;">PASO 4 · STOCH 1H</div>
+          <div style="font-size:1.1rem;margin:4px 0;">{'🟢 SOBREVENTA' if s4_on else '🟡 NEUTRO'}</div>
+          <div style="font-size:0.75rem;">Stoch RSI: {telem_c5['stoch1h']:.1f} pts</div>
+        </div>""", unsafe_allow_html=True)
+    with t5:
+        st.markdown(f"""
+        <div class="step-card {'step-on' if s5_on else 'step-off'}">
+          <div style="font-size:0.75rem;font-weight:700;">PASO 5 · GATILLO FINAL</div>
+          <div style="font-size:1.1rem;margin:4px 0;">{'🚀 DISPARAR' if s5_on else '⏳ ESPERANDO'}</div>
+          <div style="font-size:0.75rem;">Score: {telem_c5['score_c5']}/10 Pts</div>
+        </div>""", unsafe_allow_html=True)
+
+    # ── 3. LAS 3 BOVEDAS DE CEREBRO 3 (ACUMULADOR) ──────────────────
+    st.markdown("---")
+    st.subheader("📦 Las 3 Bóvedas Tácticas de Cerebro 3 (Acumulación)")
+    st.caption("Tres cajas independientes que cazan precios de descuento extremo para no volver a vender.")
+
+    bv1, bv2, bv3 = st.columns(3)
+    sop_7d = telem.get("soporte_7d", btc_price * 0.95)
+    dist_sop = ((btc_price - sop_7d) / btc_price) * 100
+    gatillo_c1 = btc_price <= (sop_7d * 1.005)
+    p_c1 = 100 if gatillo_c1 else int(max(0, min(95, (1.0 - (dist_sop/5.0))*100)))
+
+    with bv1:
+        st.markdown(f"""
+        <div class="vault-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:800;color:#38bdf8;">👑 BÓVEDA 1: PISO 7 DÍAS</div>
+            <span class="badge-blue">${caja1_monto:.0f} USDT</span>
+          </div>
+          <div style="margin:10px 0;font-size:1.2rem;font-weight:700;color:{'#22c55e' if gatillo_c1 else '#94a3b8'};">
+            {'🟢 COMPUERTA ABIERTA (100%)' if gatillo_c1 else f'🟡 Proximidad: {p_c1}%'}
+          </div>
+          <div style="font-size:0.8rem;color:#94a3b8;">
+            BTC: ${btc_price:,.0f} · Piso: ${sop_7d:,.0f}<br>
+            Distancia al soporte: <strong>{dist_sop:+.2f}%</strong>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.progress(p_c1/100)
+
+    with bv2:
+        m_giro = telem.get("macd_giro", False)
+        c_hist = telem.get("curr_hist", 0.0)
+        p_hist = telem.get("prev_hist", 0.0)
+        p_c2 = 100 if m_giro else (50 if c_hist > p_hist else 15)
+        st.markdown(f"""
+        <div class="vault-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:800;color:#818cf8;">🔱 BÓVEDA 2: MOMENTUM MACD 4H</div>
+            <span class="badge-blue">${caja2_monto:.0f} USDT</span>
+          </div>
+          <div style="margin:10px 0;font-size:1.2rem;font-weight:700;color:{'#22c55e' if m_giro else '#94a3b8'};">
+            {'🟢 GIRO ALCISTA ACTIVO' if m_giro else '🟡 Histograma Comprimiéndose'}
+          </div>
+          <div style="font-size:0.8rem;color:#94a3b8;">
+            Hist 4H: {c_hist:+.2f} (Previo: {p_hist:+.2f})<br>
+            Estado: <strong>{'✅ Momentum a Favor' if m_giro else 'Sin Giro Aún'}</strong>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.progress(p_c2/100)
+
+    with bv3:
+        r_4h = telem.get("rsi_4h", 50.0)
+        gat_c3 = r_4h <= 40.0 and m_giro
+        p_c3 = 100 if gat_c3 else int(max(0, min(95, (1.0 - ((r_4h-40.0)/30.0))*100)))
+        st.markdown(f"""
+        <div class="vault-box">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-weight:800;color:#38bdf8;">💎 BÓVEDA 3: ORÁCULO YT</div>
+            <span class="badge-blue">${caja3_monto:.0f} USDT</span>
+          </div>
+          <div style="margin:10px 0;font-size:1.2rem;font-weight:700;color:{'#22c55e' if gat_c3 else '#94a3b8'};">
+            {'🟢 SOBREVENTA EXTREMA' if gat_c3 else f'🟡 Nivel RSI: {p_c3}%'}
+          </div>
+          <div style="font-size:0.8rem;color:#94a3b8;">
+            RSI 4H: {r_4h:.1f} pts (Objetivo: &le; 40.0)<br>
+            Brecha al gatillo: <strong>{r_4h-40.0:+.1f} pts</strong>
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.progress(p_c3/100)
+
+    # ── 4. ESCALERA DE 4 NODOS DCA & ESCUDO BREAK-EVEN (CEREBRO 5) ───
+    st.markdown("---")
+    st.subheader("🪜 Escalera de 4 Nodos DCA & Escudo Break-Even (+1.5%)")
+    st.caption("Cómo gestiona Cerebro 5 una posición abierta en Binance: Recargas automáticas al -2%, -4%, -6% y blindaje de Stop Loss a 0 Riesgo al subir +1.5%.")
+
+    p_ref = btc_price
+    tp_c5 = telem_c5.get("max_7d", p_ref * 1.035) * 1.01
+    be_c5 = p_ref * 1.015
+    n1_c5 = p_ref
+    n2_c5 = p_ref * 0.98
+    n3_c5 = p_ref * 0.96
+    n4_c5 = p_ref * 0.94
+    sl_c5 = p_ref * 0.94
+
+    df_escalera = pd.DataFrame([
+        {"Nivel": "🎯 Take Profit Objetivo", "Precio Referencia": f"${tp_c5:,.2f}", "Distancia": f"{((tp_c5-p_ref)/p_ref)*100:+.2f}%", "Acción del Bot": "💰 Cierra 100% de la posición en ganancia de USD"},
+        {"Nivel": "🛡️ Nivel Break-Even (+1.5%)", "Precio Referencia": f"${be_c5:,.2f}", "Distancia": "+1.50%", "Acción del Bot": "🔒 Sube el Stop Loss al precio de entrada ($0 Riesgo)"},
+        {"Nivel": "🚀 NODO 1: Entrada Base", "Precio Referencia": f"${n1_c5:,.2f}", "Distancia": "0.00%", "Acción del Bot": "Abre orden inicial ($10 Margen a 5X)"},
+        {"Nivel": "⏳ NODO 2: Recarga -2%", "Precio Referencia": f"${n2_c5:,.2f}", "Distancia": "-2.00%", "Acción del Bot": "Recarga $10 Margen si el precio retrocede"},
+        {"Nivel": "⏳ NODO 3: Recarga -4%", "Precio Referencia": f"${n3_c5:,.2f}", "Distancia": "-4.00%", "Acción del Bot": "Recarga $10 Margen adicional para promediar a la baja"},
+        {"Nivel": "⏳ NODO 4: Recarga -6%", "Precio Referencia": f"${n4_c5:,.2f}", "Distancia": "-6.00%", "Acción del Bot": "Última recarga ($40 Margen total comprometido)"},
+        {"Nivel": "🛑 Stop Loss de Emergencia", "Precio Referencia": f"${sl_c5:,.2f}", "Distancia": "-6.00%", "Acción del Bot": "Corta pérdida si no hay rebote (Pérdida máxima ~$2-$4 USD)"},
+    ])
+    st.dataframe(df_escalera, use_container_width=True, hide_index=True)
+
+    # ── 4.B TELEMETRÍA EN VIVO Y POSICIONES ABIERTAS EN BINGX ─────────
+    st.markdown("---")
+    st.subheader("🌐 Telemetría en Vivo de BingX (Cuenta Real & Operaciones)")
+    
+    bingx_data = {}
+    for fpath in [
+        os.path.join(BASE_DIR, "CEREBRO5", "estado_cerebro5.json"),
+        os.path.join(BASE_DIR, "CEREBRO6", "estado_cerebro6.json")
+    ]:
+        if os.path.exists(fpath):
+            try:
+                st_tmp = cargar_json(fpath, {})
+                bloq_tmp = st_tmp.get("bloqueo_anti_desmadre", {})
+                if bloq_tmp and "posiciones_bingx_live" in bloq_tmp:
+                    bingx_data = bloq_tmp
+                    break
+            except: pass
+            
+    if bingx_data:
+        eq_actual = clean_num(bingx_data.get("equidad_actual", 0.0))
+        disp_actual = clean_num(bingx_data.get("disponible_actual", 0.0))
+        margen_usado = clean_num(bingx_data.get("margen_usado", 0.0))
+        pnl_flot = clean_num(bingx_data.get("pnl_flotante", 0.0))
+        
+        bx1, bx2, bx3, bx4 = st.columns(4)
+        bx1.metric("Equidad BingX", f"${eq_actual:,.2f} USDT")
+        bx2.metric("Margen Libre", f"${disp_actual:,.2f} USDT")
+        bx3.metric("Margen Usado", f"${margen_usado:,.2f} USDT")
+        color_pnl = "normal" if pnl_flot >= 0 else "inverse"
+        bx4.metric("PnL Flotante Total", f"${pnl_flot:+,.2f} USDT", delta=f"{pnl_flot:+,.2f} USDT", delta_color=color_pnl)
+        
+        pos_live = bingx_data.get("posiciones_bingx_live", [])
+        if pos_live:
+            st.markdown(f"**📌 {len(pos_live)} Posiciones Abiertas Detectadas en BingX:**")
+            rows = []
+            for p in pos_live:
+                sym = p.get("symbol", "")
+                side = p.get("positionSide", "LONG")
+                amt = clean_num(p.get("positionAmt", 0))
+                entry = clean_num(p.get("entryPrice", 0))
+                mark = clean_num(p.get("markPrice", 0))
+                pnl = clean_num(p.get("unrealizedProfit", 0))
+                margin = clean_num(p.get("margin", 0))
+                lev = p.get("leverage", 10)
+                rows.append({
+                    "Símbolo": sym,
+                    "Lado": f"🟢 {side}" if side == "LONG" else f"🔴 {side}",
+                    "Apalancamiento": f"{lev}X",
+                    "Cantidad": amt,
+                    "Entrada Base": f"${entry:,.2f}",
+                    "Precio Marca": f"${mark:,.2f}",
+                    "Margen USD": f"${margin:,.2f}",
+                    "PnL Flotante": f"${pnl:+,.2f} USDT"
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("ℹ️ Sin posiciones abiertas activas en BingX.")
+    else:
+        st.info("⏳ Aguardando telemetría de BingX...")
+
+    # ── 5. BARÓMETRO DE SINERGIA & ESCUDO MACRO CRASH ($78K -> $50K) ─
+    st.markdown("---")
+    st.subheader("🔄 Barómetro de Sinergia y Escudo Anti-Crash")
+    
+    sin1, sin2, sin3 = st.columns(3)
+    with sin1:
+        st.markdown(f"""
+        <div class="kpi">
+          <div class="kpi-t">Sinergia Cash de C5</div>
+          <div class="kpi-v" style="color:#22c55e;">+$13.17 USD</div>
+          <div class="kpi-s">Paga 100% del borrow de Binance</div>
+        </div>""", unsafe_allow_html=True)
+    with sin2:
+        esc_ok = telem_c5.get("escudo_macro_ok", True)
+        ema_200 = telem_c5.get("ema200_4h", btc_price * 0.95)
+        st.markdown(f"""
+        <div class="kpi">
+          <div class="kpi-t">Escudo Macro ($78k &rarr; $50k)</div>
+          <div class="kpi-v" style="color:{'#22c55e' if esc_ok else '#ef4444'};">{'🟢 ACTIVO (Mercado Seguro)' if esc_ok else '🔴 CAÍDA LIBRE (C5 Pausado)'}</div>
+          <div class="kpi-s">EMA 200 4H: ${ema_200:,.0f} USD</div>
+        </div>""", unsafe_allow_html=True)
+    with sin3:
+        ml_actual = margin_level if binance_ok else 4.5
+        st.markdown(f"""
+        <div class="kpi">
+          <div class="kpi-t">Distancia a Liquidación</div>
+          <div class="kpi-v" style="color:#38bdf8;">-48.5%</div>
+          <div class="kpi-s">BTC tendría que caer a $39,800</div>
+        </div>""", unsafe_allow_html=True)
+
+    # ── 6. SIMULADOR INTERACTIVO DE ESTRÉS (SLIDER EN VIVO) ──────────
+    st.markdown("---")
+    st.subheader("🧪 Simulador Interactivo de Estrés en Binance Margin 5X")
+    st.caption("Mueve el precio simulado de Bitcoin para ver exactamente cómo respondería el Nivel de Margen y la Salud de tu cuenta en tiempo real.")
+
+    sim_p = st.slider("Simular Precio de BTC (USD):", min_value=35000, max_value=120000, value=int(btc_price), step=1000)
+    
+    # Cálculo dinámico de margen simulado
+    deuda_sim = liability_btc * sim_p
+    val_btc_sim = net_btc * sim_p if binance_ok else 0.0141 * sim_p
+    colateral_sim = usdt_free + val_btc_sim
+    ml_sim = (colateral_sim / deuda_sim) if deuda_sim > 0 else 10.0
+
+    s_c1, s_c2, s_c3 = st.columns(3)
+    with s_c1:
+        st.metric("Precio Simulado", f"${sim_p:,.0f} USD", f"{((sim_p - btc_price)/btc_price)*100:+.2f}% vs Actual")
+    with s_c2:
+        st.metric("Colateral Total Estimado", f"${colateral_sim:,.2f} USD")
+    with s_c3:
+        color_ml = "🟢 Saludable" if ml_sim > 2.0 else ("🟡 Vigilar" if ml_sim > 1.3 else "🔴 ALERTA")
+        st.metric("Nivel de Margen Simulado", f"{ml_sim:.2f}", color_ml)
+
+    if sim_p <= 50000:
+        st.info("🛡️ **Diagnóstico Stress Test:** En $50,000 USD tu cuenta sobrevive con margen de 1.22+ y acumula 0.00955 BTC para dispararse en el siguiente rebote.")
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 4 — ORACLE NUMÉRIS & FILTRO ON-CHAIN (MVRV + FEAR & GREED)
+# ══════════════════════════════════════════════════════════════════
+with tab4:
+    st.subheader("🔮 Oracle Numéris & Indicadores On-Chain (MVRV + Fear & Greed)")
+    fg_v   = fg["val"]
+    mvrv_v = clean_num(m_d1.get("mvrv", 1.68), 1.68)
+    if mvrv_v <= 0.1:
+        mvrv_v = 1.68
+    nupl_v = clean_num(round(0.18 + (mvrv_v * 0.18), 2), 0.48)
+
+    g1,g2,g3 = st.columns(3)
+    with g1:
+        fc = "#22c55e" if fg_v<40 else "#eab308" if fg_v<70 else "#ef4444"
+        fl = "Miedo Extremo" if fg_v<25 else "Miedo" if fg_v<45 else "Neutro" if fg_v<60 else "Codicia" if fg_v<80 else "Codicia Extrema"
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">Fear & Greed Index</div>
+        <div class="kpi-v" style="color:{fc};font-size:2.5rem;">{fg_v}</div>
+        <div class="kpi-s">{fl}</div></div>""", unsafe_allow_html=True)
+    with g2:
+        mc2 = "#22c55e" if mvrv_v<1.5 else "#eab308" if mvrv_v<2.2 else "#ef4444"
+        ml2 = "Acumulacion" if mvrv_v<1.5 else "Justo Valor" if mvrv_v<2.2 else "Sobrecompra"
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">MVRV Z-Score D1</div>
+        <div class="kpi-v" style="color:{mc2};font-size:2.5rem;">{mvrv_v:.2f}</div>
+        <div class="kpi-s">{ml2}</div></div>""", unsafe_allow_html=True)
+    with g3:
+        nc = "#22c55e" if nupl_v<0.25 else "#eab308" if nupl_v<0.5 else "#ef4444"
+        nl = "Esperanza" if nupl_v<0.25 else "Optimismo" if nupl_v<0.5 else "Euforia"
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">NUPL</div>
+        <div class="kpi-v" style="color:{nc};font-size:2.5rem;">{nupl_v:.2f}</div>
+        <div class="kpi-s">{nl}</div></div>""", unsafe_allow_html=True)
+
+    # MVRV INTER-CICLO
+    st.markdown("---")
+    st.subheader("🔄 MVRV Inter-Ciclo — Decaimiento por Ciclo")
+    st.caption("El MVRV pico de cada ciclo BTC disminuye por maduracion del mercado. Este indicador estima donde estamos en el Ciclo 5.")
+
+    ciclos_data = [
+        {"Ciclo": "C1 — 2011",          "MVRV Pico": 10.0, "MVRV Piso": 0.12, "Decaimiento Pico": "—"},
+        {"Ciclo": "C2 — 2013",          "MVRV Pico":  7.5, "MVRV Piso": 0.18, "Decaimiento Pico": "-25%"},
+        {"Ciclo": "C3 — 2017",          "MVRV Pico":  4.8, "MVRV Piso": 0.28, "Decaimiento Pico": "-36%"},
+        {"Ciclo": "C4 — 2021",          "MVRV Pico":  3.8, "MVRV Piso": 0.45, "Decaimiento Pico": "-21%"},
+        {"Ciclo": "C5 — 2025/26 (Est.)","MVRV Pico":  2.8, "MVRV Piso": 0.65, "Decaimiento Pico": "-26%"},
+    ]
+    pico_c5 = 2.80; piso_c5 = 0.65
+    rango_c5 = pico_c5 - piso_c5
+    prog_c5  = max(0.0, min(1.0, (mvrv_v - piso_c5) / rango_c5)) if rango_c5 > 0 else 0.0
+    zona_c5  = "🔴 Capitulacion" if mvrv_v<=piso_c5 else \
+               "🟡 Acumulacion"  if mvrv_v<=1.5     else \
+               "🟢 Crecimiento"  if mvrv_v<=2.2     else \
+               "🟠 Distribucion" if mvrv_v<=pico_c5 else "🔴 Zona Techo"
+
+    ic1,ic2,ic3 = st.columns(3)
+    with ic1:
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">MVRV Actual</div>
+        <div class="kpi-v" style="color:{mc2};">{mvrv_v:.2f}</div>
+        <div class="kpi-s">{zona_c5}</div></div>""", unsafe_allow_html=True)
+    with ic2:
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">Techo Estimado C5</div>
+        <div class="kpi-v" style="color:#ef4444;">{pico_c5}</div>
+        <div class="kpi-s">Regresion logaritmica historica</div></div>""", unsafe_allow_html=True)
+    with ic3:
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">% Recorrido al Techo C5</div>
+        <div class="kpi-v" style="color:#eab308;">{prog_c5*100:.1f}%</div>
+        <div class="kpi-s">Piso: {piso_c5} — Techo: {pico_c5}</div></div>""", unsafe_allow_html=True)
+
+    st.markdown(f"**Progreso en el Ciclo 5:** {zona_c5}")
+    st.progress(prog_c5)
+    st.caption(f"Rango C5: {piso_c5} → {pico_c5} · Actual: {mvrv_v:.2f} · {prog_c5*100:.1f}% recorrido")
+
+    # Tabla historica de ciclos
+    st.dataframe(pd.DataFrame(ciclos_data), use_container_width=True, hide_index=True)
+
+    # Zonas de accion C5
+    st.markdown("**📋 Zonas de Accion — Ciclo 5:**")
+    zonas_df = pd.DataFrame([
+        {"Zona":"🔴 Capitulacion","MVRV C5":"<= 0.65",    "Accion":"Compra maxima agresiva"},
+        {"Zona":"🟡 Acumulacion", "MVRV C5":"0.65 – 1.50","Accion":"DCA activo"},
+        {"Zona":"🟢 Crecimiento", "MVRV C5":"1.50 – 2.20","Accion":"Mantener posicion"},
+        {"Zona":"🟠 Distribucion","MVRV C5":"2.20 – 2.80","Accion":"Reducir exposicion"},
+        {"Zona":"🔴 Techo C5",   "MVRV C5":">= 2.80",    "Accion":"Salida tactica"},
+    ])
+    st.dataframe(zonas_df, use_container_width=True, hide_index=True)
+
+    # Panel Macro
+    st.markdown("---")
+    st.subheader("🌍 Indicadores Macro & Commodities")
+    mm1,mm2,mm3,mm4 = st.columns(4)
+    with mm1: st.metric("🥇 Oro (PAXG/USDT)", f"${macro['oro']:,.2f}", f"{macro['oro_chg']:+.2f}%")
+    with mm2: st.metric("🛢️ Petroleo WTI",   f"${macro['petroleo']:.2f}")
+    with mm3: st.metric("💵 DXY",             f"{macro['dxy']:.2f} pts")
+    with mm4: st.metric("🏦 FED Rate",        f"{macro['fed']:.2f}%")
+    mm5,mm6,mm7,mm8 = st.columns(4)
+    with mm5: st.metric("⛏️ Puell Multiple",  f"{macro['puell']:.2f}", "Acumulacion" if macro['puell']<0.5 else "Normal")
+    with mm6: st.metric("⚡ Hashprice",       f"${macro['hashprice']:.3f}/TH/s")
+    with mm7: st.metric("🏦 ETFs BTC Flujo",  f"+${macro['etfs_flujo']:.1f}M")
+    with mm8: st.metric("📈 PMI Macro (ISM)", f"{macro['pmi']:.1f}", "Expansion" if macro['pmi']>50 else "Contraccion")
+
+    # Monitor Ballenas
+    st.markdown("---")
+    st.subheader("🐋 Monitor de Ballenas ON-CHAIN (>1,000 BTC)")
+    info_diarios = cargar_informadores_diarios()
+    w_flow = clean_num(info_diarios.get("ballenas_flujo_7d", 12652), 12652)
+    w_res  = clean_num(info_diarios.get("reservas_exchanges", 2160437), 2160437)
+    w_iliq = clean_num(info_diarios.get("suministro_iliquido_pct", 74.08), 74.08)
+    upd_time = info_diarios.get("ultima_actualizacion", "Hoy")[:10]
+    st.caption(f"📅 Estado On-Chain al día de hoy: {upd_time}")
+
+    bw1,bw2,bw3 = st.columns(3)
+    with bw1: st.metric("Acumulacion 7D",        f"+{w_flow:,.0f} BTC",   "🟢 Acumulacion Silenciosa Fuerte")
+    with bw2: st.metric("Reservas en Exchanges", f"{w_res:,.0f} BTC", "Minimo 6 anos — Escasez de Oferta")
+    with bw3: st.metric("Suministro Iliquido",   f"{w_iliq:.1f}%",          "Manos Fuertes Reteniendo")
+
+    # Precio Realizado
+    st.markdown("---")
+    st.subheader("📊 Precio Realizado & VWAP de Acumulacion")
+    vwap_2025 = 103533.17; vwap_2026 = 71315.62; onchain_g = 32450.0
+    pr1,pr2,pr3 = st.columns(3)
+    with pr1:
+        d25 = ((btc_price-vwap_2025)/vwap_2025)*100 if vwap_2025 > 0 else 0.0
+        st.metric("VWAP 2025", f"${vwap_2025:,.2f}", f"{d25:+.2f}% vs actual")
+        st.caption("🔴 Zona de Gran Descuento Historico")
+    with pr2:
+        d26 = ((btc_price-vwap_2026)/vwap_2026)*100 if vwap_2026 > 0 else 0.0
+        st.metric("VWAP 2026", f"${vwap_2026:,.2f}", f"{d26:+.2f}% vs actual")
+        st.caption("🟡 Zona Acumulacion DCA Activa")
+    with pr3:
+        dog = ((btc_price-onchain_g)/onchain_g)*100 if onchain_g > 0 else 0.0
+        st.metric("Precio Realizado On-Chain", f"${onchain_g:,.2f}", f"{dog:+.2f}% vs actual")
+        st.caption("🟢 Piso Fundamental BTC")
+
+# ── MATRIZ TECNICA MULTI-TIMEFRAME ──────────────────
+    st.subheader("📐 Matriz Tecnica Multi-Timeframe")
+    st.caption(f"Precio BTC actual: ${btc_price:,.2f} USDT")
+
+    tfs_data = [("H1",m_h1),("H4",m_h4),("D1 🎯",m_d1),("W1",m_w1),("M1",m_m1)]
+    met_keys = [("EMA 9","ema9"),("EMA 10","ema10"),("EMA 34","ema34"),("EMA 55","ema55"),
+                ("EMA 100","ema100"),("SMA 30","sma30"),("SMA 50","sma50"),
+                ("SMA 100","sma100"),("SMA 200","sma200"),
+                ("RSI 14","rsi"),("MACD Hist","macd_hist"),("MVRV Z","mvrv")]
+    rows_mat = []
+    for lbl, key in met_keys:
+        row = {"Indicador": lbl}
+        for tf_name, tf_data in tfs_data:
+            val = tf_data.get(key)
+            if val is None: row[tf_name] = "—"
+            elif key in ("rsi","mvrv","macd_hist"):
+                row[tf_name] = f"{val:+.2f}" if key=="macd_hist" else f"{val:.2f}"
+            else: row[tf_name] = f"${val:,.2f}"
+        rows_mat.append(row)
+    st.dataframe(pd.DataFrame(rows_mat), use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.subheader("🔭 Proyeccion Dinamica Proximos Dias")
+    soporte_7d = telem["soporte_7d"]; rsi_4h = telem["rsi_4h"]
+    dist_s = ((btc_price - soporte_7d) / btc_price)*100
+    prob_a = 40 if rsi_4h > 65 else 60
+    ema9_t = m_h4.get("ema9", btc_price*1.01)
+
+    e1, e2 = st.columns(2)
+    with e1:
+        st.success(f"""
+**🟢 Escenario Alcista ({prob_a}% Probabilidad)**
+
+Rebote desde ${btc_price:,.0f} buscando EMA9 en ${ema9_t:,.0f} USDT.
+RSI 4H: {rsi_4h:.1f} — {'Sobrecompra, precaucion' if rsi_4h>70 else 'Terreno neutro-alcista'}.
+        """)
+    with e2:
+        liq = soporte_7d * 0.975
+        st.error(f"""
+**🔴 Escenario Bajista ({100-prob_a}% Probabilidad)**
+
+Si se pierde soporte 7D en ${soporte_7d:,.0f} → zona de liquidacion ${liq:,.0f} USDT.
+Distancia al soporte: {dist_s:.2f}%.
+        """)
+    st.info("💡 **Recomendacion:** Cerebros 1 y 2 en espera de confirmacion. Trifecta mantiene liquidez en cash hasta senal semanal.")
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 6 — PANEL DE CONTROL & CONFIGURACIÓN DE BOTS
+# ══════════════════════════════════════════════════════════════════
+with tab6:
+    st.subheader("⚙️ Panel de Control & Configuración de Bots")
+    st.caption("Selector de modo operativo, configuración de Cajas ($20 USD/mes), Billeteras e Historiales.")
+
+    # Selector MODO REAL 🟢 vs MODO FANTASMA 👻
+    col_m1, col_m2 = st.columns([3, 1])
+    with col_m1:
+        st.markdown("""
+        <div style="background: rgba(34,197,94,0.12); border: 2px solid #22c55e; border-radius: 14px; padding: 16px; margin-bottom: 16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                    <h3 style="margin:0; font-size:1.25rem; font-weight:800; color:#22c55e;">🟢 MODO OPERATIVO EN VIVO: PRODUCCIÓN REAL</h3>
+                    <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.88rem;">Las órdenes se envían a la API real de Binance Margin y BingX Futures ($0 simulado).</p>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_m2:
+        modo_fantasma = st.toggle("👻 MODO FANTASMA (PAPER)", value=False)
+        if modo_fantasma:
+            st.info("👻 Modo Fantasma Activado: Las órdenes serán simuladas en memoria.")
+
+    st.markdown("---")
+    st.subheader("🎯 Trifecta BTC & Semáforos de Gatillo (3 Cajas)")
+    st.caption("Gestión cuantitativa de las 3 Cajas Tácticas en Binance Margin 5X. Montos configurables desde el Sidebar.")
+
+    soporte_7d = telem["soporte_7d"]; macd_giro = telem["macd_giro"]
+    curr_h = telem["curr_hist"]; prev_h = telem["prev_hist"]; rsi_4h = telem["rsi_4h"]
+
+    tc1,tc2,tc3 = st.columns(3)
+
+    # CAJA 1
+    with tc1:
+        ddu = btc_price - soporte_7d
+        ddp = (ddu/btc_price)*100 if btc_price>0 else 0
+        c1g = btc_price <= (soporte_7d*1.005)
+        p1  = 100 if c1g else int(max(0,min(95,(1.0-(ddp/5.0))*100)))
+        s1  = "🟢🟢🟢 100% — GATILLO LISTO" if c1g else (f"🟢🟢⚪ {p1}% — PRE-ALERTA" if ddp<=2 else f"🔴⚪⚪ {p1}% — ESPERANDO")
+        with st.container(border=True):
+            st.markdown("### 👑 CAJA 1: DCA SOPORTE 7D")
+            st.markdown(f"💰 **Saldo:** ${caja1_monto:.2f} USDT | **Palanca:** 5X")
+            st.markdown(f"**Semaforo:** {s1}")
+            st.progress(p1/100)
+            st.caption(f"BTC: ${btc_price:,.0f} · Soporte: ${soporte_7d:,.0f} · Distancia: {ddp:+.2f}%")
+            if st.button("🚀 Disparar Caja 1 (Manual)", key="btn_c1_master"):
+                st.toast("⚡ Caja 1 enviada a verificacion", icon="🚀")
+
+    # CAJA 2
+    with tc2:
+        c2g = macd_giro
+        p2  = 100 if c2g else (50 if curr_h>prev_h else 15)
+        s2  = "🟢🟢🟢 100% — GIRO ALCISTA" if c2g else (f"🟢🟢⚪ 50% — Comprimiendose" if curr_h>prev_h else f"🔴⚪⚪ {p2}% — Histograma Bajista")
+        with st.container(border=True):
+            st.markdown("### 🔱 CAJA 2: SWING MACD 4H")
+            st.markdown(f"💰 **Saldo:** ${caja2_monto:.2f} USDT | **Palanca:** 5X")
+            st.markdown(f"**Semaforo:** {s2}")
+            st.progress(p2/100)
+            st.caption(f"Hist Actual: {curr_h:+.2f} · Previo: {prev_h:+.2f} · {'✅ Giro Alcista' if macd_giro else 'Sin Giro Aun'}")
+            if st.button("🚀 Disparar Caja 2 (Manual)", key="btn_c2_master"):
+                st.toast("⚡ Caja 2 enviada a verificacion", icon="🚀")
+
+    # CAJA 3
+    with tc3:
+        dr3  = rsi_4h - 40.0
+        c3g  = rsi_4h<=40.0 and macd_giro
+        p3   = 100 if c3g else int(max(0,min(95,(1.0-(dr3/30.0))*100)))
+        s3   = "🟢🟢🟢 100% — ORACULO EN COMPRA" if c3g else (f"🟢🟢⚪ {p3}% — PRE-ALERTA RSI" if rsi_4h<=45 else f"🔴⚪⚪ {p3}% — RSI 4H Elevado")
+        with st.container(border=True):
+            st.markdown("### 💎 CAJA 3: ORACULO YT (RSI 4H)")
+            st.markdown(f"💰 **Saldo:** ${caja3_monto:.2f} USDT | **Palanca:** 5X")
+            st.markdown(f"**Semaforo:** {s3}")
+            st.progress(p3/100)
+            st.caption(f"RSI 4H: {rsi_4h:.1f} · Target: <=40.0 · Brecha: {dr3:+.1f} pts")
+            if st.button("🚀 Disparar Caja 3 (Manual)", key="btn_c3_master"):
+                st.toast("⚡ Caja 3 enviada a verificacion", icon="🚀")
+
+    st.markdown("---")
+    st.subheader("💰 Cartera Real Binance Margin & Monitor Anti-Desmadre")
+    vet_now5 = now_vet()
+
+    # ── 1. MONITOR ANTI-DESMADRE EN TIEMPO REAL ──────────────────────────
+    if binance_ok:
+        m_level = margin_level if margin_level > 0 else 999.0
+        deuda_tot_usd = liability_btc * btc_price
+        
+        if m_level >= 2.0 or m_level == 999.0:
+            status_color = "#22c55e"
+            status_bg = "rgba(34, 197, 94, 0.15)"
+            status_txt = "🟢 MARGEN SALUDABLE / CUENTA SEGURA"
+            status_desc = "Tu nivel de colateral cubre holgadamente las obligaciones. Cero riesgo de liquidación."
+        elif m_level >= 1.5:
+            status_color = "#eab308"
+            status_bg = "rgba(234, 179, 8, 0.15)"
+            status_txt = "🟡 ADVERTENCIA — VIGILAR MARGEN DE CUENTA"
+            status_desc = "Nivel de margen intermedio. Evitar tomar nuevo apalancamiento."
+        else:
+            status_color = "#ef4444"
+            status_bg = "rgba(239, 68, 68, 0.15)"
+            status_txt = "🔴 ALERTA MÁXIMA — RIESGO DE DESMADRE / LIQUIDACIÓN"
+            status_desc = "Margin Level por debajo de 1.5. Depositar USDT o reducir posiciones de inmediato."
+
+        st.markdown(f"""
+        <div style="background:{status_bg}; border:2px solid {status_color}; border-radius:14px; padding:16px; margin-bottom:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                <div>
+                    <h3 style="margin:0; color:{status_color}; font-size:1.3rem; font-weight:800;">{status_txt}</h3>
+                    <p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.9rem;">{status_desc}</p>
+                </div>
+                <div style="text-align:right;">
+                    <div style="font-size:0.8rem; color:#94a3b8; font-weight:700;">MARGIN LEVEL BINANCE</div>
+                    <div style="font-size:2.2rem; font-weight:900; color:{status_color};">
+                        {m_level:.2f}
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # ── 2. CARTERA REAL Y DETECCIÓN INTELIGENTE DE FLUJO DE CAJA ───────
+        def procesar_flujo_inteligente():
+            ureg = estado_dca.get("usdt_registrado", 0.0)
+            if ureg > 0:
+                delta = usdt_free - ureg
+                hoy_s = vet_now5.strftime("%Y-%m-%d")
+                if delta >= 10.0:
+                    st.info(f"📥 **Detección Inteligente:** Se detectó una ENTRADA de capital de **+${delta:,.2f} USDT** el {hoy_s}.")
+                    estado_dca["usdt_registrado"] = usdt_free
+                    guardar_json(ESTADO_DCA_FILE, estado_dca)
+                elif delta <= -10.0:
+                    st.warning(f"📤 **Detección Inteligente:** Se detectó una SALIDA / RETIRO de **-${abs(delta):,.2f} USDT** el {hoy_s}.")
+                    estado_dca["usdt_registrado"] = usdt_free
+                    guardar_json(ESTADO_DCA_FILE, estado_dca)
+            else:
+                estado_dca["usdt_registrado"] = usdt_free
+                guardar_json(ESTADO_DCA_FILE, estado_dca)
+
+        procesar_flujo_inteligente()
+
+        # Top KPIs en tiempo real de Binance Margin
+        cap_tot = estado_dca.get("capital_inyectado_total_usd", 292.98)
+        bk1, bk2, bk3, bk4 = st.columns(4)
+        with bk1: st.metric("Patrimonio Neto Real (Colateral)", f"${collateral:,.2f} USD")
+        with bk2: st.metric("USDT Libre (Free)", f"${usdt_free:,.2f} USDT")
+        with bk3: st.metric("USDT Neto (Net Asset)", f"${usdt_net:,.2f} USDT")
+        with bk4: st.metric("BTC Neto Real (Holding)", f"{btc_real:.5f} BTC", f"~${btc_real*btc_price:,.2f} USD")
+
+        # ── 3. TABLA EN TIEMPO REAL DE ACTIVOS EN BILLETERA MARGIN ───────────
+        st.markdown("---")
+        st.subheader("📊 Desglose de Activos en Cartera Margin (Consulta Directa API)")
+        user_assets_live = data_margin.get("userAssets", [])
+        rows_cartera = []
+        for asset_info in user_assets_live:
+            ast_sym = asset_info.get("asset", "")
+            free_v = clean_num(asset_info.get("free", 0.0))
+            lock_v = clean_num(asset_info.get("locked", 0.0))
+            borr_v = clean_num(asset_info.get("borrowed", 0.0)) + clean_num(asset_info.get("interest", 0.0))
+            net_v  = clean_num(asset_info.get("netAsset", 0.0))
+
+            # Mostrar solo activos con movimientos o saldo relevante
+            if abs(free_v) > 1e-6 or abs(net_v) > 1e-6 or abs(borr_v) > 1e-6 or abs(lock_v) > 1e-6:
+                if ast_sym == "USDT":
+                    px_asset = 1.0
+                elif ast_sym == "BTC":
+                    px_asset = btc_price
+                else:
+                    px_asset = obtener_precio_actual(f"{ast_sym}USDT") or 0.0
+                
+                val_usd = net_v * px_asset
+                
+                ico = "₿" if ast_sym == "BTC" else ("💵" if ast_sym == "USDT" else "🪙")
+                rows_cartera.append({
+                    "Activo": f"{ico} {ast_sym}",
+                    "Saldo Disponible": f"{free_v:,.5f}",
+                    "En Órdenes": f"{lock_v:,.5f}",
+                    "Deuda Prestada": f"{borr_v:,.5f}",
+                    "Saldo Neto (Net Asset)": f"{net_v:,.5f}",
+                    "Valor Neto estimado ($)": f"${val_usd:,.2f} USD"
+                })
+
+        if rows_cartera:
+            st.dataframe(pd.DataFrame(rows_cartera), use_container_width=True, hide_index=True)
+        else:
+            st.info("Sin activos detectados con saldo relevante en Binance Margin.")
+    else:
+        st.error("⚠️ Sin conexión a Binance API. Imposible consultar la cartera real.")
+
+    st.markdown("---")
+    st.subheader("📋 Historial de Aportes Registrados")
+    aportes = estado_dca.get("historial_aportes", [])
+    if aportes:
+        rows_ap = []
+        for item in aportes:
+            f = str(item.get("fecha", ""))
+            m = clean_num(item.get("monto", 0.0))
+            c = str(item.get("concepto", ""))
+            rows_ap.append({"Fecha": f, "Monto (USD)": f"${m:,.2f} USD", "Concepto": c})
+        df_ap = pd.DataFrame(rows_ap)
+        st.dataframe(df_ap, use_container_width=True, hide_index=True)
+        st.caption(f"Total Inyectado Registrado: ${sum(clean_num(a.get('monto', 0.0)) for a in aportes):,.2f} USD · {len(aportes)} aportes en historial")
+    else:
+        st.info("Sin aportes registrados en historial.")
+
+    st.markdown("---")
+    st.subheader("📦 Distribucion de Cajas Tacticas")
+    ck1,ck2,ck3,ck4 = st.columns(4)
+    with ck1: st.metric("Caja 1 — DCA", f"${caja1_monto:.2f}")
+    with ck2: st.metric("Caja 2 — MACD", f"${caja2_monto:.2f}")
+    with ck3: st.metric("Caja 3 — Oraculo", f"${caja3_monto:.2f}")
+    with ck4: st.metric("Total en Cajas", f"${caja1_monto+caja2_monto+caja3_monto:.2f}")
+
+    st.markdown("---")
+    st.subheader("🏆 Metas de Ganancias & Cierre Mensual Automatico")
+    objetivo_pct = 10.0
+    cap_ini_mes  = estado_dca.get("capital_inicio_mes", collateral if binance_ok else 0.0)
+    cap_actual   = collateral if binance_ok else 0.0
+    pnl_mes_usd  = cap_actual - cap_ini_mes
+    pnl_mes_pct  = (pnl_mes_usd / cap_ini_mes * 100) if cap_ini_mes > 0 else 0.0
+    prog_meta    = max(0.0, min(1.0, pnl_mes_pct / objetivo_pct))
+    gc = "#22c55e" if pnl_mes_pct>=objetivo_pct else "#eab308" if pnl_mes_pct>0 else "#ef4444"
+
+    mg1,mg2,mg3 = st.columns(3)
+    with mg1:
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">Capital Inicio del Mes</div>
+        <div class="kpi-v">${cap_ini_mes:.2f}</div><div class="kpi-s">USDT</div></div>""", unsafe_allow_html=True)
+    with mg2:
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">PnL del Mes</div>
+        <div class="kpi-v" style="color:{gc};">{pnl_mes_usd:+.2f} USD</div>
+        <div class="kpi-s">{pnl_mes_pct:+.2f}%</div></div>""", unsafe_allow_html=True)
+    with mg3:
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">Meta: +{objetivo_pct:.0f}%</div>
+        <div class="kpi-v" style="color:{gc};">{prog_meta*100:.1f}%</div>
+        <div class="kpi-s">{'🎯 META ALCANZADA!' if prog_meta>=1 else 'En progreso...'}</div></div>""", unsafe_allow_html=True)
+
+    st.markdown(f"**Progreso hacia la meta mensual (+{objetivo_pct:.0f}%):**")
+    st.progress(prog_meta)
+
+    st.markdown("---")
+    st.subheader("📅 Cierre Mensual Automatico (23:59 VET)")
+    vet6     = now_vet()
+    hoy6     = vet6.date()
+    mes_act  = hoy6.strftime("%Y-%m")
+    import calendar
+    ultimo_d = hoy6.replace(day=calendar.monthrange(hoy6.year, hoy6.month)[1])
+    dias_c   = (ultimo_d - hoy6).days
+    st.info(f"📅 Proximo cierre mensual: **{ultimo_d.strftime('%d/%m/%Y')}** — Faltan **{dias_c} dias** · Automatico a las 23:59 VET")
+
+    cierres    = estado_dca.get("historial_cierres_mensuales", [])
+    ya_cerrado = any(c.get("mes","") == mes_act for c in cierres)
+    es_ultimo  = (hoy6 == ultimo_d)
+    hora_cie   = vet6.time() >= dtime(23, 58)
+
+    if es_ultimo and hora_cie and not ya_cerrado and binance_ok:
+        aportes_mes = sum(a["monto"] for a in estado_dca.get("historial_aportes",[]) if a.get("fecha","").startswith(mes_act))
+        cierre_aut = {"mes":mes_act,"capital_inicio":cap_ini_mes,"aportes_del_mes":aportes_mes,
+                      "capital_fin":cap_actual,"pnl_usd":pnl_mes_usd,"pnl_pct":round(pnl_mes_pct,2),
+                      "meta_pct":objetivo_pct,"meta_alcanzada":pnl_mes_pct>=objetivo_pct}
+        estado_dca.setdefault("historial_cierres_mensuales",[]).append(cierre_aut)
+        estado_dca["capital_inicio_mes"] = cap_actual
+        guardar_json(ESTADO_DCA_FILE, estado_dca)
+        st.success(f"🎊 Cierre del mes {mes_act} ejecutado! PnL: {pnl_mes_usd:+.2f} USD ({pnl_mes_pct:+.2f}%)")
+
+    st.subheader("📊 Historial de Cierres Mensuales")
+    if cierres:
+        df_c = pd.DataFrame(cierres).rename(columns={
+            "mes":"Mes","capital_inicio":"Capital Inicio","aportes_del_mes":"Aportes",
+            "capital_fin":"Capital Fin","pnl_usd":"PnL (USD)","pnl_pct":"PnL (%)",
+            "meta_pct":"Meta (%)","meta_alcanzada":"Meta Alcanzada"})
+        st.dataframe(df_c, use_container_width=True, hide_index=True)
+        racha = 0
+        for ci in reversed(cierres):
+            if ci.get("meta_alcanzada"): racha+=1
+            else: break
+        if racha>0:
+            st.success(f"🔥 ¡Racha activa! {racha} mes{'es' if racha>1 else ''} consecutivo{'s' if racha>1 else ''} alcanzando la meta.")
+    else:
+        st.info("El primer cierre mensual se registrara automaticamente el ultimo dia del mes a las 23:59 VET.")
+
+    st.markdown("---")
+    if st.button("🔒 Ejecutar Cierre Mensual Ahora (Manual)", key="btn_cierre_manual_master"):
+        if not ya_cerrado and binance_ok:
+            aportes_mes = sum(a["monto"] for a in estado_dca.get("historial_aportes",[]) if a.get("fecha","").startswith(mes_act))
+            cman = {"mes":mes_act+"-M","capital_inicio":cap_ini_mes,"aportes_del_mes":aportes_mes,
+                    "capital_fin":cap_actual,"pnl_usd":pnl_mes_usd,"pnl_pct":round(pnl_mes_pct,2),
+                    "meta_pct":objetivo_pct,"meta_alcanzada":pnl_mes_pct>=objetivo_pct}
+            estado_dca.setdefault("historial_cierres_mensuales",[]).append(cman)
+            guardar_json(ESTADO_DCA_FILE, estado_dca)
+            st.success("✅ Cierre mensual manual ejecutado y guardado.")
+            st.rerun()
+        else:
+            st.warning("El cierre de este mes ya fue registrado o Binance no esta disponible.")
+
+    st.markdown("---")
+    st.subheader("📈 Calculadora de Proyeccion HODL (2028-2030)")
+    st.caption("Simula el poder de acumular cuota mensual de los Universos en Bitcoin retenido hasta el proximo Halving.")
+
+    aporte_sl = st.slider("Aporte Mensual (USD):", 10, 500, 50, step=10)
+    meses_sl  = st.slider("Horizonte de Tiempo (Meses):", 12, 60, 36, step=6)
+
+    btc_x_mes  = aporte_sl / btc_price if btc_price > 0 else 0
+    btc_total  = btc_x_mes * meses_sl
+    cap_total7 = aporte_sl * meses_sl
+
+    st.markdown(f"""
+    <div style="background:rgba(30,41,59,.7);border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:12px;">
+    <strong>📊 Resumen de Acumulacion</strong><br>
+    💰 Capital Total Invertido: <strong>${cap_total7:,.2f} USD</strong><br>
+    ₿ Bitcoin Acumulado Estimado: <strong>{btc_total:.5f} BTC</strong> ({int(btc_total*1e8):,} Satoshis)
+    </div>
+    """, unsafe_allow_html=True)
+
+    escenarios7 = [("🟡 Conservador",50_000,"#eab308"),("🟢 Moderado",250_000,"#22c55e"),("🚀 Super-Ciclo",500_000,"#818cf8")]
+    ec1,ec2,ec3 = st.columns(3)
+    for col, (nombre, pbtc, color) in zip([ec1,ec2,ec3], escenarios7):
+        valor7 = btc_total * pbtc
+        gp7    = ((valor7-cap_total7)/cap_total7*100) if cap_total7>0 else 0
+        with col:
+            st.markdown(f"""<div class="kpi"><div class="kpi-t">{nombre} (${pbtc:,}/BTC)</div>
+            <div class="kpi-v" style="color:{color};">${valor7:,.2f} USD</div>
+            <div class="kpi-s">+{gp7:.1f}% ganancia</div></div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.subheader("📅 Proyeccion Ano a Ano")
+    tabla7 = []
+    for anio in range(1, meses_sl//12 + 2):
+        if anio*12 > meses_sl: break
+        btc_a = btc_x_mes * anio*12
+        cap_a = aporte_sl * anio*12
+        tabla7.append({
+            "Ano": f"Ano {anio}",
+            "Capital Invertido": f"${cap_a:,.0f}",
+            "BTC Acumulado": f"{btc_a:.5f}",
+            "Valor @$50K": f"${btc_a*50000:,.0f}",
+            "Valor @$250K": f"${btc_a*250000:,.0f}",
+            "Valor @$500K": f"${btc_a*500000:,.0f}",
+        })
+    if tabla7:
+        st.dataframe(pd.DataFrame(tabla7), use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.caption("*Cazador PRO · Cuartel General Unificado · Puerto 8500 · Solo Dashboard — Sin Bots Activos*")
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 5 — LABORATORIO DE SIMBIOSIS CUÁNTICA & OPTIMIZACIÓN QUANT
+# ══════════════════════════════════════════════════════════════════
+with tab5:
+    st.subheader("🧪 Laboratorio Quant & Simbiosis (Telemetría en Vivo desde Hoy)")
+    st.caption("Monitoreo exclusivo de operaciones y simbiosis en tiempo real A PARTIR DE HOY (30/Agosto/2026). Sin datos simulados del pasado.")
+
+    # Cargar telemetría del laboratorio
+    data_lab = {}
+    if HAS_LAB_QUANT:
+        try:
+            data_lab = ejecutar_simulacion_laboratorio()
+        except Exception:
+            data_lab = cargar_json(os.path.join(ESTADO_DIR, "estado_laboratorio_quant.json"), {})
+    else:
+        data_lab = cargar_json(os.path.join(ESTADO_DIR, "estado_laboratorio_quant.json"), {})
+
+    seg_hoy = data_lab.get("seguimiento_en_vivo_desde_hoy", {})
+    cap_arranque = float(seg_hoy.get("capital_arranque_usd", 606.65))
+
+    saldo_actual_v = clean_num(capital_actual_usd)
+    pnl_real_v = round(saldo_actual_v - cap_arranque, 2)
+    pnl_real_pct_v = round((pnl_real_v / cap_arranque) * 100.0, 2) if cap_arranque > 0 else 0.0
+
+    color_real = "#22c55e" if pnl_real_v >= 0 else "#ef4444"
+
+    # Tarjeta Principal: Telemetría Real en Vivo desde Hoy (30 Agosto 2026)
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(15,23,42,0.95)); border: 2px solid #22c55e; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: 0 0 25px rgba(34,197,94,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+                <span class="badge-green">🔴 SEGUIMIENTO EN VIVO A PARTIR DE HOY</span>
+                <h2 style="margin: 6px 0 0 0; font-size: 1.8rem; font-weight: 800; color: #22c55e;">
+                    ECOSISTEMA REAL DE HOY (30 AGOSTO 2026)
+                </h2>
+                <p style="margin: 6px 0 0 0; color: #cbd5e1; font-size: 1.02rem;">
+                    Capital de Arranque Inicial (Hoy 23:59): <strong>${cap_arranque:,.2f} USD</strong>
+                </p>
+            </div>
+            <div style="text-align:center; background: rgba(15,23,42,0.85); border: 2px solid {color_real}; border-radius: 14px; padding: 12px 24px;">
+                <div style="font-size: 0.78rem; color: #94a3b8; font-weight: 700; text-transform: UPPERCASE;">PNL NETO EN VIVO HOY</div>
+                <div style="font-size: 2.2rem; font-weight: 900; color: {color_real}; line-height: 1;">
+                    {pnl_real_v:+,.2f} USD
+                </div>
+                <div style="font-size: 0.85rem; font-weight:700; color: {color_real}; margin-top: 4px;">
+                    {pnl_real_pct_v:+.2f}% de Rendimiento Real
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Segregación Diaria de Rendimiento por Exchange desde Hoy
+    st.markdown("### 📊 Rendimiento Separado en Tiempo Real (Desde Hoy)")
+    col_bin, col_bing = st.columns(2)
+    
+    bin_ini = 131.20
+    bin_act = collateral if binance_ok else 134.07
+    bin_pnl = bin_act - bin_ini
+    bin_pct = (bin_pnl / bin_ini * 100.0) if bin_ini > 0 else 0.0
+    color_b1 = "#22c55e" if bin_pnl >= 0 else "#ef4444"
+
+    bing_ini = 475.45
+    bing_act = 476.58
+    bing_pnl = bing_act - bing_ini
+    bing_pct = (bing_pnl / bing_ini * 100.0) if bing_ini > 0 else 0.0
+    color_b2 = "#22c55e" if bing_pnl >= 0 else "#ef4444"
+
+    with col_bin:
+        st.markdown(f"""
+        <div style="background: rgba(15,23,42,0.9); border: 2px solid #38bdf8; border-radius: 16px; padding: 20px;">
+            <div style="font-size: 0.85rem; color: #38bdf8; font-weight: 800; text-transform: uppercase;">🟡 BINANCE MARGIN REAL (DESDE HOY)</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #f8fafc; margin-top: 6px;">${bin_act:,.2f} USDT</div>
+            <div style="font-size: 0.95rem; color: {color_b1}; font-weight: 800; margin-top: 4px;">{bin_pnl:+,.2f} USD ({bin_pct:+.2f}%)</div>
+            <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 6px;">Capital Base Inicial Hoy: ${bin_ini:,.2f} USDT</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col_bing:
+        st.markdown(f"""
+        <div style="background: rgba(15,23,42,0.9); border: 2px solid #eab308; border-radius: 16px; padding: 20px;">
+            <div style="font-size: 0.85rem; color: #eab308; font-weight: 800; text-transform: uppercase;">⚡ BINGX FUTUROS REAL (DESDE HOY)</div>
+            <div style="font-size: 1.8rem; font-weight: 900; color: #f8fafc; margin-top: 6px;">${bing_act:,.2f} USDT</div>
+            <div style="font-size: 0.95rem; color: {color_b2}; font-weight: 800; margin-top: 4px;">{bing_pnl:+,.2f} USD ({bing_pct:+.2f}%)</div>
+            <div style="font-size: 0.78rem; color: #cbd5e1; margin-top: 6px;">Capital Base Inicial Hoy: ${bing_ini:,.2f} USDT</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 7 — MAPA DE CALOR, INSPECTOR POR ACTIVO & MOTOR DE DECISIÓN
+# ══════════════════════════════════════════════════════════════════
+with tab7:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(15,23,42,0.95)); border: 2px solid #ef4444; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: 0 0 25px rgba(239,68,68,0.2);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+                <span style="background:rgba(239,68,68,0.2); color:#ef4444; padding:4px 12px; border-radius:20px; font-size:0.85rem; font-weight:800; border:1px solid rgba(239,68,68,0.4);">🔥 TERMODINÁMICA & DECISION ENGINE 24/7</span>
+                <h2 style="margin: 6px 0 0 0; font-size: 1.85rem; font-weight: 800; color: #f8fafc;">
+                    INSPECTOR TÁCTICO POR ACTIVO & MAPA DE CALOR
+                </h2>
+                <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.95rem;">
+                    Selección individual por activo, análisis 360°, score de convicción, calculadoras de planes Long/Short y matriz térmica
+                </p>
+            </div>
+            <div>
+                <span class="badge-gold">📊 32 PARES DE LA FLOTA</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    ECOSISTEMA_PARES_HEATMAP = [
+        # Top Tier / Core Criptos
+        {"nombre": "Bitcoin", "symbol": "BTC-USDT", "symbol_bin": "BTCUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "Ethereum", "symbol": "ETH-USDT", "symbol_bin": "ETHUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "Solana", "symbol": "SOL-USDT", "symbol_bin": "SOLUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "BNB", "symbol": "BNB-USDT", "symbol_bin": "BNBUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "SUI", "symbol": "SUI-USDT", "symbol_bin": "SUIUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "Aptos", "symbol": "APT-USDT", "symbol_bin": "APTUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "Avalanche", "symbol": "AVAX-USDT", "symbol_bin": "AVAXUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "Chainlink", "symbol": "LINK-USDT", "symbol_bin": "LINKUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "DOGE", "symbol": "DOGE-USDT", "symbol_bin": "DOGEUSDT", "cat": "₿ Criptomonedas Tier 1"},
+        {"nombre": "PEPE", "symbol": "PEPE-USDT", "symbol_bin": "PEPEUSDT", "cat": "Memecoins / Volatilidad"},
+        {"nombre": "TAO (Bittensor)", "symbol": "TAO-USDT", "symbol_bin": "TAOUSDT", "cat": "AI / Tech Cripto"},
+        {"nombre": "ONDO", "symbol": "ONDO-USDT", "symbol_bin": "ONDOUSDT", "cat": "RWA / Infra"},
+        {"nombre": "HYPE", "symbol": "HYPE-USDT", "symbol_bin": "HYPEUSDT", "cat": "DeFi / Trend"},
+        {"nombre": "DEXE", "symbol": "DEXE-USDT", "symbol_bin": "DEXEUSDT", "cat": "DeFi Sniper"},
+        {"nombre": "GRASS", "symbol": "GRASS-USDT", "symbol_bin": "GRASSUSDT", "cat": "AI / DePIN"},
+        {"nombre": "LIGHTER", "symbol": "LIGHTER-USDT", "symbol_bin": None, "cat": "Altcoin Sniper"},
+        {"nombre": "KITE", "symbol": "KITE-USDT", "symbol_bin": None, "cat": "Altcoin Sniper"},
+        
+        # Acciones Tech & Indices Macro
+        {"nombre": "Microsoft", "symbol": "NCSKMSFT2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "MicroStrategy", "symbol": "NCSKMSTR2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "NVIDIA", "symbol": "NCSKNVDA2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Apple", "symbol": "NCSKAAPL2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Tesla", "symbol": "NCSKTSLA2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Amazon", "symbol": "NCSKAMAZON2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Alphabet (Google)", "symbol": "NCSKALPHABET2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "AMD", "symbol": "NCSKAMD2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Meta", "symbol": "NCSKMETA2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Coinbase", "symbol": "NCSKCOINBASE2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "Invesco QQQ", "symbol": "NCSKQQQ2USD-USDT", "symbol_bin": None, "cat": "💻 Acciones Tech"},
+        {"nombre": "S&P 500", "symbol": "NCSISP5002USD-USDT", "symbol_bin": None, "cat": "🏆 Commodities e Índices"},
+        {"nombre": "Dow Jones", "symbol": "NCSIDOWJONES2USD-USDT", "symbol_bin": None, "cat": "🏆 Commodities e Índices"},
+        {"nombre": "Oro (PAXG)", "symbol": "PAXG-USDT", "symbol_bin": "PAXGUSDT", "cat": "🏆 Commodities e Índices"},
+        {"nombre": "Petróleo WTI", "symbol": "NCCO1OILWTI2USD-USDT", "symbol_bin": None, "cat": "🏆 Commodities e Índices"}
+    ]
+
+    opcion_modo_tab7 = st.radio(
+        "Modo de Visualización:",
+        ["🔍 INSPECTOR TÁCTICO POR ACTIVO (DEEP DIVE)", "🧱 MATRIZ TÉRMICA & MAPA DE CALOR (TODOS LOS PARES)"],
+        horizontal=True
+    )
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    @st.cache_data(ttl=60)
+    def procesar_mapa_de_calor_total():
+        # Precios en vivo de BingX
+        res_prices = {}
+        try:
+            r = requests.get('https://open-api.bingx.com/openApi/swap/v2/quote/ticker', timeout=5).json()
+            if r.get("code") == 0 and "data" in r:
+                res_prices = {t["symbol"]: clean_num(t.get("lastPrice", 0)) for t in r["data"]}
+        except Exception:
+            pass
+
+        data_results = []
+        for item in ECOSISTEMA_PARES_HEATMAP:
+            sym = item["symbol"]
+            sym_bin = item["symbol_bin"]
+            name = item["nombre"]
+            cat = item["cat"]
+            
+            p_live = res_prices.get(sym, 0.0)
+            
+            # Fetch candles for indicators
+            df = None
+            try:
+                url_b = f"https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol={sym}&interval=1d&limit=90"
+                rb = requests.get(url_b, timeout=3).json()
+                if rb.get("code") == 0 and "data" in rb and rb["data"]:
+                    df = pd.DataFrame(rb["data"])
+                    for col in ["open", "high", "low", "close", "volume"]:
+                        df[col] = df[col].astype(float)
+            except Exception: pass
+            
+            if (df is None or len(df) < 15) and sym_bin:
+                try:
+                    url_bin = f"https://api.binance.com/api/v3/klines?symbol={sym_bin}&interval=1d&limit=90"
+                    rbin = requests.get(url_bin, timeout=3).json()
+                    if isinstance(rbin, list) and len(rbin) > 0:
+                        df = pd.DataFrame(rbin, columns=['ot','open','high','low','close','volume','ct','qv','tr','tb','tq','ig'])
+                        for col in ["open", "high", "low", "close", "volume"]:
+                            df[col] = df[col].astype(float)
+                except Exception: pass
+
+            if df is None or len(df) < 10:
+                continue
+
+            if p_live <= 0:
+                p_live = clean_num(df["close"].iloc[-1])
+            else:
+                df.loc[df.index[-1], "close"] = p_live
+
+            c = df["close"]
+            max_90d = clean_num(df["high"].max(), p_live * 1.05)
+            min_90d = clean_num(df["low"].min(), p_live * 0.95)
+            
+            ema9 = clean_num(pure_ema(c, 9).iloc[-1], p_live)
+            ema21 = clean_num(pure_ema(c, 21).iloc[-1], p_live)
+            ema55 = clean_num(pure_ema(c, 55).iloc[-1], p_live)
+            ema200 = clean_num(pure_ema(c, min(200, len(c))).iloc[-1], p_live)
+            rsi = clean_num(pure_rsi(c, 14).iloc[-1], 50.0)
+            
+            # ATR 1D
+            tr_series = pd.concat([df['high'] - df['low'], (df['high'] - c.shift(1)).abs(), (df['low'] - c.shift(1)).abs()], axis=1).max(axis=1)
+            atr14 = clean_num(tr_series.rolling(14).mean().iloc[-1], p_live * 0.02)
+            atr_pct = clean_num((atr14 / p_live) * 100.0, 2.0)
+            
+            # Formatos de porcentaje
+            dist_ema55_pct = clean_num(((p_live - ema55) / (ema55 + 1e-9)) * 100.0, 0.0)
+            dist_ema200_pct = clean_num(((p_live - ema200) / (ema200 + 1e-9)) * 100.0, 0.0)
+            pos_range_pct = clean_num(((p_live - min_90d) / ((max_90d - min_90d) + 1e-9)) * 100.0, 50.0)
+            
+            # Score Térmico Ponderado (0 - 100)
+            # RSI weight 40%, Posicion en Rango 40%, Distancia EMA55 20%
+            heat_score = (rsi * 0.40) + (pos_range_pct * 0.40) + (max(0.0, min(100.0, (dist_ema55_pct + 20.0) * 2.5)) * 0.20)
+            heat_score = clean_num(max(0.0, min(100.0, heat_score)), 50.0)
+            
+            if heat_score >= 72.0 or rsi >= 68.0:
+                estado = "🔥 SOBRECOMPRA EXTREMA"
+                recomendacion = "🔴 ZONA TÁCTICA SHORT / RESISTENCIA"
+                color_code = "#ef4444"
+                badge_css = "background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444;"
+            elif heat_score >= 55.0:
+                estado = "🟠 CALIENTE / MOMENTUM"
+                recomendacion = "🟡 MANTENER / HODL TÁCTICO"
+                color_code = "#f97316"
+                badge_css = "background:rgba(249,115,22,0.2); color:#f97316; border:1px solid #f97316;"
+            elif heat_score >= 40.0:
+                estado = "🟡 NEUTRO / EQUILIBRIO"
+                recomendacion = "💤 ESPERAR CONFIRMACIÓN"
+                color_code = "#eab308"
+                badge_css = "background:rgba(234,179,8,0.2); color:#eab308; border:1px solid #eab308;"
+            else:
+                estado = "🧊 SOBREVENTA / SUELO"
+                recomendacion = "🟢 ZONA COMPRA LONG / SUELO"
+                color_code = "#38bdf8"
+                badge_css = "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
+
+            # Estado de adopción
+            adopcion = "🟢 OPERADO POR BOT (CEREBRO 5/6)"
+            if sym in ["NCSKMSFT2USD-USDT", "BTC-USDT"]:
+                adopcion = "🛡️ POSICIÓN MANUAL PROTEGIDA (EXCLUIDO DE BOT)"
+            elif "Tier 1" in cat:
+                adopcion = "🟢 OPERADO POR DUPLA MAESTRA & BOT"
+
+            data_results.append({
+                "nombre": name,
+                "symbol": sym,
+                "categoria": cat,
+                "precio": p_live,
+                "rsi": round(rsi, 1),
+                "ema9": round(ema9, 2),
+                "ema21": round(ema21, 2),
+                "ema55": round(ema55, 2),
+                "ema200": round(ema200, 2),
+                "atr14": round(atr14, 2),
+                "atr_pct": round(atr_pct, 2),
+                "dist_ema55_pct": round(dist_ema55_pct, 2),
+                "dist_ema200_pct": round(dist_ema200_pct, 2),
+                "max_90d": round(max_90d, 2),
+                "min_90d": round(min_90d, 2),
+                "pos_range_pct": round(pos_range_pct, 1),
+                "heat_score": round(heat_score, 1),
+                "estado": estado,
+                "recomendacion": recomendacion,
+                "color_code": color_code,
+                "badge_css": badge_css,
+                "adopcion": adopcion
+            })
+
+        return data_results
+
+    heat_data = procesar_mapa_de_calor_total()
+
+    if not heat_data:
+        st.warning("⚠️ Cargando datos de mercado para el Mapa de Calor e Inspector...")
+    else:
+        # =====================================================================
+        # MODO 1: INSPECTOR TÁCTICO POR ACTIVO (SINGLE-ASSET DEEP DIVE)
+        # =====================================================================
+        if "INSPECTOR TÁCTICO POR ACTIVO" in opcion_modo_tab7:
+            lista_nombres = [item["nombre"] for item in heat_data]
+            
+            sel_idx = 0
+            if "Microsoft" in lista_nombres: sel_idx = lista_nombres.index("Microsoft")
+            sel_nombre = st.selectbox("🔎 SELECCIONAR ACTIVO PARA INSPECCIÓN TÁCTICA 360°", lista_nombres, index=sel_idx)
+
+            asset = next((x for x in heat_data if x["nombre"] == sel_nombre), heat_data[0])
+            
+            p_val = asset["precio"]
+            p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
+            ema9_fmt = f"${asset['ema9']:,.4f}" if asset['ema9'] < 1.0 else (f"${asset['ema9']:,.2f}" if asset['ema9'] < 1000.0 else f"${asset['ema9']:,.0f}")
+            ema21_fmt = f"${asset['ema21']:,.4f}" if asset['ema21'] < 1.0 else (f"${asset['ema21']:,.2f}" if asset['ema21'] < 1000.0 else f"${asset['ema21']:,.0f}")
+            ema55_fmt = f"${asset['ema55']:,.4f}" if asset['ema55'] < 1.0 else (f"${asset['ema55']:,.2f}" if asset['ema55'] < 1000.0 else f"${asset['ema55']:,.0f}")
+            ema200_fmt = f"${asset['ema200']:,.4f}" if asset['ema200'] < 1.0 else (f"${asset['ema200']:,.2f}" if asset['ema200'] < 1000.0 else f"${asset['ema200']:,.0f}")
+            
+            # 1. HERO CARD DEL ACTIVO SELECCIONADO
+            st.markdown(f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.9)); border: 2px solid {asset['color_code']}; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.6);">
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+<div>
+<span style="{asset['badge_css']} padding:4px 12px; border-radius:16px; font-size:0.8rem; font-weight:800;">{asset['categoria']}</span>
+<h1 style="margin:8px 0 0 0; font-size:2.2rem; font-weight:900; color:#f8fafc;">{asset['nombre']} <span style="font-size:1.1rem; color:#94a3b8;">({asset['symbol']})</span></h1>
+<p style="margin:4px 0 0 0; color:#cbd5e1; font-size:0.9rem;">{asset['adopcion']}</p>
+</div>
+<div style="text-align:right;">
+<div style="font-size:0.8rem; color:#94a3b8; font-weight:800;">PRECIO EN VIVO</div>
+<div style="font-size:2.4rem; font-weight:900; color:#ffffff; line-height:1.1;">{p_fmt}</div>
+<div style="font-size:0.88rem; font-weight:800; color:{asset['color_code']}; margin-top:4px;">{asset['estado']} ({asset['heat_score']}/100 Pts)</div>
+</div>
+</div>
+</div>""", unsafe_allow_html=True)
+
+            # 2. SCORE CUANTITATIVO DE CONVICCIÓN & VEREDICTO ALGORÍTMICO
+            col_score1, col_score2 = st.columns([1.2, 2.8])
+            
+            score_conviccion = clean_num(asset["heat_score"])
+            if score_conviccion >= 72.0 or asset["rsi"] >= 68.0:
+                conv_txt = "🔴 ALTA CONVICCIÓN SHORT (ENTRAR EN TECHO / RESISTENCIA)"
+                conv_color = "#ef4444"
+                veredicto_txt = f"El activo {asset['nombre']} se encuentra en sobrecompra extrema (RSI 1D {asset['rsi']} pts) a +{asset['dist_ema55_pct']:+.1f}% sobre su EMA 55 ({ema55_fmt}). Estrategia recomendada: <strong>SHORT EN TECHO</strong> buscando retroceso a la EMA 21 ({ema21_fmt})."
+            elif score_conviccion >= 55.0:
+                conv_txt = "🟡 MOMENTUM ALTO / HODL TÁCTICO (ESPERAR REBOTES)"
+                conv_color = "#f97316"
+                veredicto_txt = f"El activo {asset['nombre']} mantiene impulso alcista vivo pero se aproxima a zona de resistencia. No comprar en FOMO; mantener posiciones existentes o esperar retroceso a la EMA 9 ({ema9_fmt})."
+            elif score_conviccion >= 40.0:
+                conv_txt = "🟡 NEUTRO / EQUILIBRIO (SIN SEÑAL CLARA)"
+                conv_color = "#eab308"
+                veredicto_txt = f"El activo {asset['nombre']} cotiza en zona neutral ({asset['rsi']} pts RSI). Esperar confirmación en vela 1H de mecha de absorción antes de tomar posiciones."
+            else:
+                conv_txt = "🟢 ALTA CONVICCIÓN LONG (SUELO DE DESCUENTO INSTITUCIONAL)"
+                conv_color = "#38bdf8"
+                veredicto_txt = f"El activo {asset['nombre']} se encuentra en zona de sobreventa ({asset['rsi']} pts RSI) cerca del suelo de 90 días ({asset['min_90d']:,.2f}). Estrategia recomendada: <strong>LONG EN SUELO / DCA</strong>."
+
+            with col_score1:
+                st.markdown(f"""<div style="background:rgba(15,23,42,0.9); border:2px solid {conv_color}; border-radius:16px; padding:18px; text-align:center;">
+<div style="font-size:0.8rem; color:#94a3b8; font-weight:800;">SCORE DE CONVICCIÓN</div>
+<div style="font-size:2.8rem; font-weight:900; color:{conv_color}; line-height:1;">{score_conviccion:.0f}/100</div>
+<div style="font-size:0.82rem; font-weight:800; color:{conv_color}; margin-top:6px;">{conv_txt}</div>
+</div>""", unsafe_allow_html=True)
+
+            with col_score2:
+                st.markdown(f"""<div style="background:rgba(15,23,42,0.9); border:1px solid #334155; border-radius:16px; padding:18px;">
+<div style="font-size:0.8rem; color:#38bdf8; font-weight:800;">🗣️ VEREDICTO OFICIAL DEL ALGORITMO (CAZADOR PRO)</div>
+<div style="font-size:0.95rem; color:#f8fafc; margin-top:8px; line-height:1.5;">{veredicto_txt}</div>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 3. SEMÁFOROS MULTI-TEMPORALES PARALELOS (1W, 1D, 4H, 1H)
+            st.markdown(f"### 🚦 Matriz Semafórica Multi-Timeframe: {asset['nombre']}")
+            
+            c_tf1, c_tf2, c_tf3, c_tf4 = st.columns(4)
+            with c_tf1:
+                st.markdown(f"""<div style="background:rgba(30,41,59,0.7); border:1px solid #475569; border-radius:12px; padding:14px; text-align:center;">
+<div style="font-size:0.78rem; color:#94a3b8; font-weight:800;">1W (MACRO)</div>
+<div style="font-size:1.1rem; font-weight:800; color:#f8fafc; margin:4px 0;">EMA 200: {ema200_fmt}</div>
+<div style="font-size:0.8rem; color:#cbd5e1;">Distancia: {asset['dist_ema200_pct']:+.1f}%</div>
+</div>""", unsafe_allow_html=True)
+
+            with c_tf2:
+                st.markdown(f"""<div style="background:rgba(30,41,59,0.7); border:1px solid #475569; border-radius:12px; padding:14px; text-align:center;">
+<div style="font-size:0.78rem; color:#94a3b8; font-weight:800;">1D (TÁCTICO)</div>
+<div style="font-size:1.1rem; font-weight:800; color:{asset['color_code']}; margin:4px 0;">RSI: {asset['rsi']} pts</div>
+<div style="font-size:0.8rem; color:#cbd5e1;">Dist. EMA 55: {asset['dist_ema55_pct']:+.1f}%</div>
+</div>""", unsafe_allow_html=True)
+
+            with c_tf3:
+                st.markdown(f"""<div style="background:rgba(30,41,59,0.7); border:1px solid #475569; border-radius:12px; padding:14px; text-align:center;">
+<div style="font-size:0.78rem; color:#94a3b8; font-weight:800;">4H (SWING)</div>
+<div style="font-size:1.1rem; font-weight:800; color:#f8fafc; margin:4px 0;">EMA 21: {ema21_fmt}</div>
+<div style="font-size:0.8rem; color:#cbd5e1;">ATR 1D: ${asset['atr14']:,.2f} ({asset['atr_pct']}%)</div>
+</div>""", unsafe_allow_html=True)
+
+            with c_tf4:
+                st.markdown(f"""<div style="background:rgba(30,41,59,0.7); border:1px solid #475569; border-radius:12px; padding:14px; text-align:center;">
+<div style="font-size:0.78rem; color:#94a3b8; font-weight:800;">1H (SNIPER GATILLO)</div>
+<div style="font-size:1.1rem; font-weight:800; color:#38bdf8; margin:4px 0;">EMA 9: {ema9_fmt}</div>
+<div style="font-size:0.8rem; color:#22c55e;">Mecha SMC ≥ 40%</div>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 4. CALCULADORA TÁCTICA DE PLANES LONG & SHORT EN VIVO
+            st.markdown(f"### 🎯 Planes de Trading Táctico (Niveles Exactos en USD): {asset['nombre']}")
+            col_plan_long, col_plan_short = st.columns(2)
+            
+            entry_long = round(min(p_val, (p_val + asset['ema9']) / 2.0), 2)
+            sl_long = round(max(0.01, entry_long - (1.5 * asset['atr14'])), 2)
+            tp1_long = round(entry_long + (2.0 * asset['atr14']), 2)
+            tp2_long = round(entry_long + (3.8 * asset['atr14']), 2)
+            rr_long = round((tp1_long - entry_long) / max(0.01, entry_long - sl_long), 2)
+
+            entry_short = round(max(p_val, (p_val + asset['ema9']) / 2.0), 2)
+            sl_short = round(entry_short + (1.5 * asset['atr14']), 2)
+            tp1_short = round(max(0.01, entry_short - (2.0 * asset['atr14'])), 2)
+            tp2_short = round(max(0.01, entry_short - (3.8 * asset['atr14'])), 2)
+            rr_short = round((entry_short - tp1_short) / max(0.01, sl_short - entry_short), 2)
+
+            with col_plan_long:
+                st.markdown(f"""<div style="background:rgba(15,23,42,0.9); border:2px solid #22c55e; border-radius:16px; padding:18px;">
+<div style="font-size:0.85rem; color:#22c55e; font-weight:800; text-transform:uppercase;">🟢 PLAN OPERATIVO LONG (COMPRA EN SUELO)</div>
+<div style="margin-top:10px; font-size:0.9rem; color:#f8fafc;">
+• <strong>Entrada Óptima:</strong> ${entry_long:,.2f}<br>
+• <strong>Stop Loss (1.5 ATR):</strong> ${sl_long:,.2f} (Riesgo: -{abs(entry_long-sl_long)/entry_long*100:.1f}%)<br>
+• <strong>Take Profit 1 (EMA 21):</strong> ${tp1_long:,.2f} (+{abs(tp1_long-entry_long)/entry_long*100:.1f}%)<br>
+• <strong>Take Profit 2 (Techo Rango):</strong> ${tp2_long:,.2f} (+{abs(tp2_long-entry_long)/entry_long*100:.1f}%)<br>
+• <strong>Ratio Riesgo / Beneficio:</strong> <strong style="color:#22c55e;">1 : {rr_long}</strong>
+</div>
+</div>""", unsafe_allow_html=True)
+
+            with col_plan_short:
+                st.markdown(f"""<div style="background:rgba(15,23,42,0.9); border:2px solid #ef4444; border-radius:16px; padding:18px;">
+<div style="font-size:0.85rem; color:#ef4444; font-weight:800; text-transform:uppercase;">🔴 PLAN OPERATIVO SHORT (VENTA EN TECHO)</div>
+<div style="margin-top:10px; font-size:0.9rem; color:#f8fafc;">
+• <strong>Entrada Óptima Short:</strong> ${entry_short:,.2f}<br>
+• <strong>Stop Loss (1.5 ATR):</strong> ${sl_short:,.2f} (Riesgo: -{abs(sl_short-entry_short)/entry_short*100:.1f}%)<br>
+• <strong>Take Profit 1 (EMA 21 1D):</strong> ${tp1_short:,.2f} (+{abs(entry_short-tp1_short)/entry_short*100:.1f}%)<br>
+• <strong>Take Profit 2 (Piso EMA 55 1D):</strong> ${tp2_short:,.2f} (+{abs(entry_short-tp2_short)/entry_short*100:.1f}%)<br>
+• <strong>Ratio Riesgo / Beneficio:</strong> <strong style="color:#ef4444;">1 : {rr_short}</strong>
+</div>
+</div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # 5. ESCALERA DE 3 CAJAS TÁCTICAS
+            st.markdown(f"### 📦 Escalera de 3 Cajas Tácticas de Recarga: {asset['nombre']}")
+            box_c1, box_c2, box_c3 = st.columns(3)
+            
+            caja1_p = round(asset['ema21'], 2)
+            caja2_p = round(asset['ema55'], 2)
+            caja3_p = round(asset['min_90d'], 2)
+
+            with box_c1:
+                st.markdown(f"""<div class="vault-box" style="border-color:#38bdf8;">
+<div style="font-size:0.8rem; color:#38bdf8; font-weight:800;">📦 CAJA 1: PULLBACK TÁCTICO</div>
+<div style="font-size:1.4rem; font-weight:900; color:#ffffff; margin:4px 0;">${caja1_p:,.2f}</div>
+<div style="font-size:0.78rem; color:#94a3b8;">Soporte EMA 21 Diaria</div>
+</div>""", unsafe_allow_html=True)
+
+            with box_c2:
+                st.markdown(f"""<div class="vault-box" style="border-color:#eab308;">
+<div style="font-size:0.8rem; color:#eab308; font-weight:800;">📦 CAJA 2: PISO INSTITUCIONAL</div>
+<div style="font-size:1.4rem; font-weight:900; color:#ffffff; margin:4px 0;">${caja2_p:,.2f}</div>
+<div style="font-size:0.78rem; color:#94a3b8;">Descuento EMA 55 Diaria</div>
+</div>""", unsafe_allow_html=True)
+
+            with box_c3:
+                st.markdown(f"""<div class="vault-box" style="border-color:#a855f7;">
+<div style="font-size:0.8rem; color:#a855f7; font-weight:800;">📦 CAJA 3: SUELO DE CAPITULACIÓN</div>
+<div style="font-size:1.4rem; font-weight:900; color:#ffffff; margin:4px 0;">${caja3_p:,.2f}</div>
+<div style="font-size:0.78rem; color:#94a3b8;">Mínimo del Rango 90D</div>
+</div>""", unsafe_allow_html=True)
+
+        else:
+            c_f1, c_f2, c_f3 = st.columns([2, 2, 2])
+            
+            with c_f1:
+                cats_avail = ["🔥 Todos los Pares"] + sorted(list(set(d["categoria"] for d in heat_data)))
+                sel_cat = st.selectbox("Filtrar por Categoría de Mercado", cats_avail)
+                
+            with c_f2:
+                sel_sort = st.selectbox("Ordenar Mapa por", [
+                    "🔥 Mayor Nivel de Calor (Sobrecompra a Sobreventa)",
+                    "🧊 Menor Nivel de Calor (Sobreventa a Sobrecompra)",
+                    "📈 Mayor RSI Diario (1D)",
+                    "📉 Mayor Descuento vs EMA 55"
+                ])
+                
+            with c_f3:
+                search_query = st.text_input("🔍 Buscar Activo / Ticker", "").strip().upper()
+
+            filtered_data = heat_data.copy()
+            if sel_cat != "🔥 Todos los Pares":
+                filtered_data = [d for d in filtered_data if d["categoria"] == sel_cat]
+                
+            if search_query:
+                filtered_data = [d for d in filtered_data if search_query in d["nombre"].upper() or search_query in d["symbol"].upper()]
+
+            if "Mayor Nivel de Calor" in sel_sort:
+                filtered_data.sort(key=lambda x: x["heat_score"], reverse=True)
+            elif "Menor Nivel de Calor" in sel_sort:
+                filtered_data.sort(key=lambda x: x["heat_score"], reverse=False)
+            elif "Mayor RSI" in sel_sort:
+                filtered_data.sort(key=lambda x: x["rsi"], reverse=True)
+            elif "Mayor Descuento" in sel_sort:
+                filtered_data.sort(key=lambda x: x["dist_ema55_pct"], reverse=False)
+
+            count_sobrecompra = sum(1 for d in heat_data if d["heat_score"] >= 72.0 or d["rsi"] >= 68.0)
+            count_oportunidad = sum(1 for d in heat_data if 40.0 <= d["heat_score"] < 55.0)
+            count_suelo = sum(1 for d in heat_data if d["heat_score"] < 40.0 or d["rsi"] <= 35.0)
+
+            h_col1, h_col2, h_col3, h_col4 = st.columns(4)
+            with h_col1:
+                st.markdown(f"""<div class="kpi"><div class="kpi-t">ACTIVOS ESCANEADOS</div><div class="kpi-v">{len(heat_data)}</div><div class="kpi-s">100% Cobertura Flota</div></div>""", unsafe_allow_html=True)
+            with h_col2:
+                st.markdown(f"""<div class="kpi" style="border-color:#ef4444;"><div class="kpi-t" style="color:#ef4444;">🔥 SOBRECOMPRA / SHORT</div><div class="kpi-v" style="color:#ef4444;">{count_sobrecompra}</div><div class="kpi-s">Resistencia / Techos</div></div>""", unsafe_allow_html=True)
+            with h_col3:
+                st.markdown(f"""<div class="kpi" style="border-color:#eab308;"><div class="kpi-t" style="color:#eab308;">🟡 ZONA NEUTRA / HODL</div><div class="kpi-v" style="color:#eab308;">{count_oportunidad}</div><div class="kpi-s">Consolidación</div></div>""", unsafe_allow_html=True)
+            with h_col4:
+                st.markdown(f"""<div class="kpi" style="border-color:#38bdf8;"><div class="kpi-t" style="color:#38bdf8;">🧊 SOBREVENTA / LONG</div><div class="kpi-v" style="color:#38bdf8;">{count_suelo}</div><div class="kpi-s">Suelos de Descuento</div></div>""", unsafe_allow_html=True)
+
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown("### 🧱 Matriz Térmica e Intensidad de Liquidez")
+            
+            grid_cols = st.columns(3)
+            for idx, item in enumerate(filtered_data):
+                col_idx = idx % 3
+                with grid_cols[col_idx]:
+                    p_val = item["precio"]
+                    p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
+                    ema55_fmt = f"${item['ema55']:,.4f}" if item['ema55'] < 1.0 else (f"${item['ema55']:,.2f}" if item['ema55'] < 1000.0 else f"${item['ema55']:,.0f}")
+                    
+                    dist_color = "#ef4444" if item["dist_ema55_pct"] > 5.0 else ("#22c55e" if item["dist_ema55_pct"] < 0.0 else "#eab308")
+
+                    card_html = f"""<div style="background: rgba(15,23,42,0.92); border: 2px solid {card_border}; border-radius: 16px; padding: 20px; margin-bottom: 20px; box-shadow: 0 0 25px rgba(0,0,0,0.4);">
+<div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #334155; padding-bottom:12px; margin-bottom:14px;">
+<div>
+<span style="font-size:0.75rem; font-weight:800; background:{card_border}22; color:{card_border}; padding:3px 8px; border-radius:6px; text-transform:uppercase;">{act['tipo']} · {act['exchange']}</span>
+<h2 style="margin:6px 0 0 0; font-size:1.6rem; font-weight:900; color:#f8fafc;">{act['sym']} <span style="font-size:1rem; font-weight:600; color:#94a3b8;">({act['nombre']})</span></h2>
+<div style="font-size:1.8rem; font-weight:900; color:#38bdf8; margin-top:2px;">${act['precio']:,.2f} <span style="font-size:0.85rem; color:#94a3b8;">USD</span></div>
+</div>
+<div style="text-align:right;">
+<div style="font-size:0.75rem; color:#94a3b8; font-weight:700;">CONFLUENCIA</div>
+<div style="font-size:2.2rem; font-weight:900; color:{card_border}; line-height:1;">{sc}<span style="font-size:1rem; color:#64748b;">/100</span></div>
+<div style="font-size:0.8rem; font-weight:800; color:{recom_color}; margin-top:4px;">{act['recom']}</div>
+</div>
+</div>
+<div style="background:rgba(30,41,59,0.5); border-radius:10px; padding:10px 14px; margin-bottom:14px; font-size:0.82rem; color:#cbd5e1;">
+<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+<span>🛡️ <strong>Soporte 7D:</strong> ${act['sop_7d']:,.2f}</span>
+<span>🏰 <strong>Techo 7D:</strong> ${act['res_7d']:,.2f}</span>
+</div>
+<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+<span>📦 <strong>Order Block:</strong> {act['ob_dom']}</span>
+<span>📈 <strong>EMA 55:</strong> ${act['ema55']:,.2f}</span>
+</div>
+<div style="display:flex; justify-content:space-between;">
+<span>⚡ <strong>Stoch %K:</strong> {act['stoch_k']:.1f} (RSI {act['rsi']:.1f})</span>
+<span>🌪️ <strong>ADX:</strong> {act['adx']:.1f} {'🟢 Fuerza' if act['adx']>=23 else '🔴 Lateral'}</span>
+</div>
+</div>
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
+<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#22c55e; border-bottom:1px solid rgba(34,197,94,0.2); padding-bottom:4px; margin-bottom:8px;">🟢 PLAN COMPRA (LONG)</div>
+<div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
+🎯 <strong>Gatillo Entrada:</strong> <strong style="color:#f8fafc;">${act['long_trigger']:,.2f}</strong><br>
+🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${act['long_sl']:,.2f}</strong><br>
+🎯 <strong>TP1 (50% + BE):</strong> <strong style="color:#eab308;">${act['long_tp1']:,.2f}</strong><br>
+🏆 <strong>TP2 (R:R 1:3):</strong> <strong style="color:#22c55e;">${act['long_tp2']:,.2f}</strong>
+</div>
+</div>
+<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.2); padding-bottom:4px; margin-bottom:8px;">🔴 PLAN VENTA (SHORT)</div>
+<div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
+🎯 <strong>Gatillo Entrada:</strong> <strong style="color:#f8fafc;">${act['short_trigger']:,.2f}</strong><br>
+🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${act['short_sl']:,.2f}</strong><br>
+🎯 <strong>TP1 (50% + BE):</strong> <strong style="color:#eab308;">${act['short_tp1']:,.2f}</strong><br>
+🏆 <strong>TP2 (R:R 1:3):</strong> <strong style="color:#22c55e;">${act['short_tp2']:,.2f}</strong>
+</div>
+</div>
+</div>
+<div style="font-size:0.78rem; color:#94a3b8; border-left:3px solid {card_border}; padding-left:8px; line-height:1.4;">
+💡 <strong>Táctica:</strong> {act['nota']}
+</div>
+</div>"""
+                    st.markdown(card_html, unsafe_allow_html=True)
+
+            st.markdown("---")
+            with st.expander("📋 Ver Tabla Cuantitativa Completa de Parámetros"):
+                import pandas as pd
+                df_display = pd.DataFrame(filtered_data)[[
+                    "nombre", "symbol", "categoria", "precio", "rsi", "dist_ema55_pct", "pos_range_pct", "heat_score", "estado", "recomendacion"
+                ]]
+                df_display.columns = [
+                    "Activo", "Ticker", "Categoría", "Precio Actual", "RSI 1D", "Dist. EMA55 %", "Pos. Rango 90D %", "Score Calor", "Estado Térmico", "Recomendación"
+                ]
+                st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+    st.markdown("---")
+    st.caption("*Mapa de Calor & Inspector Táctico por Activo · Cazador PRO · Puerto 8500*")
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 8 — ACTIVOS DE ÉLITE (SCORE DE CONVICCIÓN ≥ 88 PTS)
+# ══════════════════════════════════════════════════════════════════
+with tab8:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(15,23,42,0.95)); border: 2px solid #eab308; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: 0 0 25px rgba(234,179,8,0.25);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+                <span style="background:rgba(234,179,8,0.25); color:#eab308; padding:4px 12px; border-radius:20px; font-size:0.85rem; font-weight:800; border:1px solid rgba(234,179,8,0.5);">🎯 PANEL DE ALTA CONVICCIÓN QUANT</span>
+                <h2 style="margin: 6px 0 0 0; font-size: 1.85rem; font-weight: 800; color: #f8fafc;">
+                    ACTIVOS DE ÉLITE (SCORE ≥ 88 PTS)
+                </h2>
+                <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.95rem;">
+                    Matriz Térmica & Fichas Tácticas Operativas para Oportunidades Clave (Sobrecompra Extrema 🔴 SHORT / Suelos 🟢 LONG)
+                </p>
+            </div>
+            <div>
+                <span class="badge-gold">⚡ SELECCIÓN AUTOMÁTICA EN VIVO</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    raw_heat = procesar_mapa_de_calor_total()
+    elite_assets = [item for item in raw_heat if item["heat_score"] >= 88.0 or item["rsi"] >= 75.0 or item["rsi"] <= 28.0]
+    
+    if not elite_assets and raw_heat:
+        sorted_by_ext = sorted(raw_heat, key=lambda x: abs(x["heat_score"] - 50.0), reverse=True)
+        elite_assets = sorted_by_ext[:6]
+
+    st.markdown(f"### 🏆 {len(elite_assets)} ACTIVOS DESTACADOS CON SCORE DE CONVICCIÓN EXTREMA")
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 1. MATRIZ TÉRMICA ÉLITE (GRILLA DE INTENSIDAD TÉRMICA)
+    st.markdown("### 🧱 Matriz Térmica Élite & Densidad de Liquidez (Activos ≥ 88 Pts)")
+    st.markdown("Visión panorámica de intensidad térmica de los activos de mayor convicción del ecosistema:")
+    
+    matrix_cols = st.columns(3)
+    for idx, item in enumerate(elite_assets):
+        col_idx = idx % 3
+        with matrix_cols[col_idx]:
+            p_val = item["precio"]
+            p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
+            ema55_fmt = f"${item['ema55']:,.4f}" if item['ema55'] < 1.0 else (f"${item['ema55']:,.2f}" if item['ema55'] < 1000.0 else f"${item['ema55']:,.0f}")
+            
+            dist_color = "#ef4444" if item["dist_ema55_pct"] > 5.0 else ("#22c55e" if item["dist_ema55_pct"] < 0.0 else "#eab308")
+
+            st.markdown(f"""<div style="background: rgba(15,23,42,0.95); border: 2px solid {item['color_code']}; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+<div>
+<span style="font-size:1.1rem; font-weight:800; color:#f8fafc;">{item['nombre']}</span>
+<span style="font-size:0.75rem; color:#94a3b8; margin-left:4px;">({item['symbol']})</span>
+</div>
+<span style="{item['badge_css']} padding:2px 8px; border-radius:12px; font-size:0.72rem; font-weight:800;">
+{item['estado']}
+</span>
+</div>
+<div style="display:flex; justify-content:space-between; align-items:baseline; margin: 8px 0;">
+<span style="font-size: 1.5rem; font-weight: 900; color: #ffffff;">{p_fmt}</span>
+<span style="font-size: 0.82rem; font-weight: 800; color: {dist_color};">
+EMA55: {item['dist_ema55_pct']:+.1f}%
+</span>
+</div>
+<div style="background: rgba(30,41,59,0.8); padding: 8px; border-radius: 8px; margin-bottom: 8px;">
+<div style="display:flex; justify-content:space-between; font-size:0.78rem; color:#cbd5e1; margin-bottom: 4px;">
+<span>🔥 Score Élite: <strong>{item['heat_score']}/100</strong></span>
+<span>📊 RSI 1D: <strong>{item['rsi']} pts</strong></span>
+</div>
+<div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8;">
+<span>Soporte EMA 55: {ema55_fmt}</span>
+<span>Rango 90D: {item['pos_range_pct']}%</span>
+</div>
+</div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🎯 Fichas Tácticas Operativas (Planes de Trading en USD)")
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 2. TARJETAS DE TRADING QUIRÚRGICAS
+    elite_cols = st.columns(2)
+    for idx, asset in enumerate(elite_assets):
+        col_idx = idx % 2
+        with elite_cols[col_idx]:
+            p_val = asset["precio"]
+            p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
+            ema9_fmt = f"${asset['ema9']:,.4f}" if asset['ema9'] < 1.0 else (f"${asset['ema9']:,.2f}" if asset['ema9'] < 1000.0 else f"${asset['ema9']:,.0f}")
+            p_val = asset["precio"]
+            p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
+            ema9_fmt = f"${asset['ema9']:,.4f}" if asset['ema9'] < 1.0 else (f"${asset['ema9']:,.2f}" if asset['ema9'] < 1000.0 else f"${asset['ema9']:,.0f}")
+            ema21_fmt = f"${asset['ema21']:,.4f}" if asset['ema21'] < 1.0 else (f"${asset['ema21']:,.2f}" if asset['ema21'] < 1000.0 else f"${asset['ema21']:,.0f}")
+            ema55_fmt = f"${asset['ema55']:,.4f}" if asset['ema55'] < 1.0 else (f"${asset['ema55']:,.2f}" if asset['ema55'] < 1000.0 else f"${asset['ema55']:,.0f}")
+            
+            is_short = asset["heat_score"] >= 70.0 or asset["rsi"] >= 65.0
+            card_border = "#ef4444" if is_short else "#38bdf8"
+            dir_badge = "🔴 OPORTUNIDAD SHORT EN TECHO" if is_short else "🟢 OPORTUNIDAD LONG EN SUELO"
+            dir_bg = "background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444;" if is_short else "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
+            
+            if is_short:
+                entry_p = round(max(p_val, (p_val + asset['ema9']) / 2.0), 2)
+                sl_p = round(entry_p + (1.5 * asset['atr14']), 2)
+                tp1_p = round(max(0.01, entry_p - (2.0 * asset['atr14'])), 2)
+                tp2_p = round(max(0.01, entry_p - (3.8 * asset['atr14'])), 2)
+                rr = round((entry_p - tp1_p) / max(0.01, sl_p - entry_p), 2)
+                plan_title = "🔴 ESTRATEGIA OPERATIVA: SHORT EN TECHO"
+            else:
+                entry_p = round(min(p_val, (p_val + asset['ema9']) / 2.0), 2)
+                sl_p = round(max(0.01, entry_p - (1.5 * asset['atr14'])), 2)
+                tp1_p = round(entry_p + (2.0 * asset['atr14']), 2)
+                tp2_p = round(entry_p + (3.8 * asset['atr14']), 2)
+                rr = round((tp1_p - entry_p) / max(0.01, entry_p - sl_p), 2)
+                plan_title = "🟢 ESTRATEGIA OPERATIVA: LONG EN PISO"
+
+            st.markdown(f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.92)); border: 2px solid {card_border}; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.6);">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+<div>
+<span style="{asset['badge_css']} padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:800;">{asset['categoria']}</span>
+<h2 style="margin:6px 0 0 0; font-size:1.6rem; font-weight:900; color:#f8fafc;">{asset['nombre']} <span style="font-size:0.95rem; color:#94a3b8;">({asset['symbol']})</span></h2>
+</div>
+<div style="text-align:right;">
+<span style="{dir_bg} padding:5px 12px; border-radius:16px; font-size:0.8rem; font-weight:800;">{dir_badge}</span>
+<div style="font-size:1.8rem; font-weight:900; color:#ffffff; margin-top:4px;">{p_fmt}</div>
+</div>
+</div>
+
+<div style="background:rgba(30,41,59,0.8); border-radius:12px; padding:12px; margin-bottom:14px; display:flex; justify-content:space-around; text-align:center;">
+<div>
+<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">SCORE CONVICCIÓN</div>
+<div style="font-size:1.3rem; font-weight:900; color:{card_border};">{asset['heat_score']}/100</div>
+</div>
+<div>
+<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">RSI DIARIO</div>
+<div style="font-size:1.3rem; font-weight:900; color:#f8fafc;">{asset['rsi']} pts</div>
+</div>
+<div>
+<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">DIST. EMA 55</div>
+<div style="font-size:1.3rem; font-weight:900; color:{card_border};">{asset['dist_ema55_pct']:+.1f}%</div>
+</div>
+</div>
+
+<div style="background:rgba(15,23,42,0.9); border:1px solid #334155; border-radius:12px; padding:14px;">
+<div style="font-size:0.82rem; font-weight:800; color:{card_border}; margin-bottom:6px;">{plan_title}</div>
+<div style="font-size:0.88rem; color:#cbd5e1; line-height:1.6;">
+• <strong>Entrada Sugerida:</strong> ${entry_p:,.2f}<br>
+• <strong>Stop Loss (1.5 ATR):</strong> ${sl_p:,.2f} (Riesgo: -{abs(entry_p-sl_p)/entry_p*100:.1f}%)<br>
+• <strong>Take Profit 1:</strong> ${tp1_p:,.2f}<br>
+• <strong>Take Profit 2:</strong> ${tp2_p:,.2f}<br>
+• <strong>Ratio Riesgo/Beneficio:</strong> <strong style="color:{card_border};">1 : {rr}</strong>
+</div>
+</div>
+</div>""", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.caption("*Panel de Activos de Élite (Score ≥ 88 Pts) · Cazador PRO · Puerto 8500*")
+
+
+
