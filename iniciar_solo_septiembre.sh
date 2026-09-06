@@ -34,12 +34,27 @@ if [ -d "$DIR_SEPTIEMBRE/HIBRIDO" ]; then
     cd "$DIR_SEPTIEMBRE"
 fi
 
-# 4. Dashboard Maestro Consolidado (8500)
+# 4. Cerebro 4: Mega-Agente ADN Autónomo (BingX Biaxial + Binance BTC Margin)
+if [ -d "$DIR_SEPTIEMBRE/AUTONOMO" ]; then
+    cd "$DIR_SEPTIEMBRE/AUTONOMO"
+    pkill -f "cazador_mega_agente_autonomo.py"
+    pkill -f "dashboard_mega_agente.py"
+    nohup "$VENV/python3" "$DIR_SEPTIEMBRE/AUTONOMO/cazador_mega_agente_autonomo.py" > "$DIR_SEPTIEMBRE/AUTONOMO/mega_agente_adn.log" 2>&1 &
+    nohup "$VENV/streamlit" run "$DIR_SEPTIEMBRE/AUTONOMO/dashboard_mega_agente.py" --server.port 8560 --server.headless true --server.enableCORS false --server.enableXsrfProtection false > "$LOG_DIR/dashboard_8560.log" 2>&1 &
+    cd "$DIR_SEPTIEMBRE"
+fi
+
+# 5. Dashboard Maestro Consolidado (8500)
 pkill -f "dashboard_maestro.py"
 nohup "$VENV/streamlit" run "$DIR_SEPTIEMBRE/dashboard_maestro.py" --server.port 8500 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false > "$LOG_DIR/dashboard_maestro.log" 2>&1 &
 
-# 5. Guardián de Túnel Cloudflare Remoto & Notificador Telegram
+# 6. Guardián de Túnel Cloudflare Remoto & Notificador Telegram
 pkill -f "tunel_maestro_telegram.py"
 nohup "$VENV/python3" "$DIR_SEPTIEMBRE/tunel_maestro_telegram.py" > "$LOG_DIR/tunel_maestro.log" 2>&1 &
 
-echo "✅ Cerebros oficiales de SEPTIEMBRE y Túnel Remoto iniciados exitosamente."
+# 7. Guardián Watchdog Anti-Apagones / Anti-Luz / Anti-Caídas
+pkill -f "guardian_anti_apagones.sh"
+nohup "$DIR_SEPTIEMBRE/guardian_anti_apagones.sh" > "$LOG_DIR/guardian_watchdog.log" 2>&1 &
+
+echo "✅ Cerebros oficiales de SEPTIEMBRE (C1, C2, C3, C4 HQ), Túnel Remoto y Guardián Anti-Apagones iniciados exitosamente."
+
