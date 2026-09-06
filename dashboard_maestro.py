@@ -283,6 +283,17 @@ def verificar_estado_detallado_cerebros():
             "state_file": os.path.join(BASE_DIR, "HIBRIDO", "estado_trifecta_hibrido.json")
         },
         {
+            "id": "C4",
+            "nombre": "Cerebro 4: Mega-Agente ADN Autónomo",
+            "tipo": "Motor + Dashboard",
+            "script_motor": "cazador_mega_agente_autonomo.py",
+            "script_dash": "dashboard_mega_agente.py",
+            "puerto": 8560,
+            "mercado": "BingX Biaxial + Binance BTC Margin",
+            "log_file": "AUTONOMO/mega_agente_adn.log",
+            "state_file": os.path.join(BASE_DIR, "AUTONOMO", "estado_mega_agente.json")
+        },
+        {
             "id": "HQ",
             "nombre": "Cuartel General PRO 2.0",
             "tipo": "Sala de Mando Maestro",

@@ -82,3 +82,8 @@ Thumbs.db
 *temp*
 *.swp
 *.swo
+AUTONOMO/*.log
+AUTONOMO/estado_*.json
+AUTONOMO/libro_mayor_*.json
+AUTONOMO/memoria_*.json
+AUTONOMO/config_*.json
