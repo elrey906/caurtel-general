@@ -5084,57 +5084,81 @@ with tab10:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # ═══════════════════════════════════════════════════════════════════════
-    # 🎯 BLOQUE 5: ACTIVOS DE ÉLITE (EXTREMOS ESTADÍSTICOS SUELOS VS TECHOS)
+    # 🎯 BLOQUE 5: ACTIVOS DE ÉLITE (RECOMENDACIONES COMPLETAS CON ENTRADA, TP Y SL)
     # ═══════════════════════════════════════════════════════════════════════
-    st.subheader("🎯 Oportunidades de Élite: Suelos Institucionales vs Techos de Distribución")
-    st.caption("Filtrado matemático por Score de Convicción Quant ≥ 80 pts (Crypto + Wall Street).")
+    st.subheader("🎯 Oportunidades de Élite: Entradas, TP1, TP2 y Stop Loss Exactos")
+    st.caption("Filtrado matemático por Score de Convicción Quant ≥ 80 pts con parámetros de ejecución listos para operar.")
 
     e_col1, e_col2, e_col3 = st.columns(3)
     with e_col1:
         st.markdown("""
-        <div style="background:rgba(56,189,248,0.08); border:1px solid #38bdf8; border-radius:16px; padding:16px;">
+        <div style="background:rgba(15,23,42,0.95); border:2px solid #38bdf8; border-radius:16px; padding:18px; box-shadow:0 0 20px rgba(56,189,248,0.15);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:800; color:#f8fafc; font-size:1.05rem;">Alphabet (Google)</span>
-                <span style="background:#38bdf8; color:#090d16; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:6px;">SOBREVENTA / SUELO</span>
+                <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">Alphabet (Google)</span>
+                <span style="background:#22c55e; color:#090d16; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">🟢 COMPRA (LONG)</span>
             </div>
-            <div style="font-size:1.8rem; font-weight:900; color:#38bdf8; margin:6px 0;">$338.83</div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
-                <span>🎯 Convicción: <strong style="color:#22c55e;">99.0 / 100</strong></span>
-                <span>RSI 1D: <strong style="color:#38bdf8;">23.3 pts</strong></span>
+            <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
+                <span style="font-size:2rem; font-weight:900; color:#38bdf8;">$338.83</span>
+                <span style="font-size:0.8rem; color:#22c55e; font-weight:700;">SUELO INSTITUCIONAL</span>
             </div>
-            <div style="font-size:0.75rem; color:#22c55e; margin-top:4px;">EMA 55: -1.5% (Suelo Institucional: $343.89)</div>
+            <div style="background:rgba(56,189,248,0.08); border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
+                <div style="color:#f8fafc;">💵 <strong>Entrada:</strong> <strong style="color:#38bdf8;">$338.00 – $338.80</strong></div>
+                <div style="color:#f8fafc;">🎯 <strong>TP 1 (50% + BE):</strong> <strong style="color:#ffd600;">$348.50</strong> (+2.8%)</div>
+                <div style="color:#f8fafc;">🏆 <strong>TP 2 (Swing):</strong> <strong style="color:#22c55e;">$358.00</strong> (+5.7%)</div>
+                <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">$331.50</strong> (-2.2%)</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
+                <span>🎯 Convicción: <strong style="color:#22c55e;">99.0/100</strong> (RSI 23.3)</span>
+                <span>📦 Lote: <strong style="color:#38bdf8;">$10 @ 10X</strong></span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     with e_col2:
         st.markdown("""
-        <div style="background:rgba(239,68,68,0.08); border:1px solid #ef4444; border-radius:16px; padding:16px;">
+        <div style="background:rgba(15,23,42,0.95); border:2px solid #ef4444; border-radius:16px; padding:18px; box-shadow:0 0 20px rgba(239,68,68,0.15);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:800; color:#f8fafc; font-size:1.05rem;">Meta Platforms</span>
-                <span style="background:#ef4444; color:#fff; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:6px;">🔥 SOBRECOMPRA EXTREMA</span>
+                <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">Meta Platforms</span>
+                <span style="background:#ef4444; color:#fff; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">🔴 VENTA (SHORT)</span>
             </div>
-            <div style="font-size:1.8rem; font-weight:900; color:#ef4444; margin:6px 0;">$614.22</div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
-                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0 / 100</strong></span>
-                <span>RSI 1D: <strong style="color:#ef4444;">77.1 pts</strong></span>
+            <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
+                <span style="font-size:2rem; font-weight:900; color:#ef4444;">$614.22</span>
+                <span style="font-size:0.8rem; color:#ef4444; font-weight:700;">TECHO EXTREMO</span>
             </div>
-            <div style="font-size:0.75rem; color:#ef4444; margin-top:4px;">EMA 55: +7.9% (Techo de Distribución)</div>
+            <div style="background:rgba(239,68,68,0.08); border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
+                <div style="color:#f8fafc;">💵 <strong>Entrada Short:</strong> <strong style="color:#ef4444;">$614.00 – $616.00</strong></div>
+                <div style="color:#f8fafc;">🎯 <strong>TP 1 (50% + BE):</strong> <strong style="color:#ffd600;">$595.00</strong> (-3.1%)</div>
+                <div style="color:#f8fafc;">🏆 <strong>TP 2 (EMA 55):</strong> <strong style="color:#22c55e;">$572.00</strong> (-6.8%)</div>
+                <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">$628.00</strong> (+2.2%)</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
+                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0/100</strong> (RSI 77.1)</span>
+                <span>📦 Lote: <strong style="color:#ef4444;">$10 @ 10X</strong></span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     with e_col3:
         st.markdown("""
-        <div style="background:rgba(239,68,68,0.08); border:1px solid #ef4444; border-radius:16px; padding:16px;">
+        <div style="background:rgba(15,23,42,0.95); border:2px solid #ef4444; border-radius:16px; padding:18px; box-shadow:0 0 20px rgba(239,68,68,0.15);">
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:800; color:#f8fafc; font-size:1.05rem;">Avalanche (AVAX)</span>
-                <span style="background:#ef4444; color:#fff; font-size:0.65rem; font-weight:800; padding:2px 6px; border-radius:6px;">🔥 SOBRECOMPRA EXTREMA</span>
+                <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">Avalanche (AVAX)</span>
+                <span style="background:#ef4444; color:#fff; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">🔴 VENTA (SHORT)</span>
             </div>
-            <div style="font-size:1.8rem; font-weight:900; color:#ef4444; margin:6px 0;">$7.77</div>
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
-                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0 / 100</strong></span>
-                <span>RSI 1D: <strong style="color:#ef4444;">81.2 pts</strong></span>
+            <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
+                <span style="font-size:2rem; font-weight:900; color:#ef4444;">$7.77</span>
+                <span style="font-size:0.8rem; color:#ef4444; font-weight:700;">SOBRECOMPRA 81.2</span>
             </div>
-            <div style="font-size:0.75rem; color:#ef4444; margin-top:4px;">EMA 55: +4.6% (Buscar Toma de Ganancias)</div>
+            <div style="background:rgba(239,68,68,0.08); border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
+                <div style="color:#f8fafc;">💵 <strong>Entrada Short:</strong> <strong style="color:#ef4444;">$7.75 – $7.80</strong></div>
+                <div style="color:#f8fafc;">🎯 <strong>TP 1 (50% + BE):</strong> <strong style="color:#ffd600;">$7.35</strong> (-5.4%)</div>
+                <div style="color:#f8fafc;">🏆 <strong>TP 2 (EMA 55):</strong> <strong style="color:#22c55e;">$6.90</strong> (-11.2%)</div>
+                <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">$8.15</strong> (+4.8%)</div>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
+                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0/100</strong> (RSI 81.2)</span>
+                <span>📦 Lote: <strong style="color:#ef4444;">$10 @ 10X</strong></span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
