@@ -42,7 +42,8 @@ UNIVERSO_FASE2 = [
     {"sym": "AMZN",  "bingx_sym": "NCSKAMZN2USD-USDT",  "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.050, "sl_pct": 0.030, "max_dias": 25},
     {"sym": "META",  "bingx_sym": "NCSKMETA2USD-USDT",  "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.055, "sl_pct": 0.030, "max_dias": 25},
     {"sym": "GOOGL", "bingx_sym": "NCSKGOOGL2USD-USDT", "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.050, "sl_pct": 0.025, "max_dias": 25},
-    {"sym": "AMD",   "bingx_sym": "NCSKAMD2USD-USDT",   "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.070, "sl_pct": 0.040, "max_dias": 25}
+    {"sym": "AMD",   "bingx_sym": "NCSKAMD2USD-USDT",   "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.070, "sl_pct": 0.040, "max_dias": 25},
+    {"sym": "MSFT",  "bingx_sym": "NCSKMSFT2USD-USDT",  "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.045, "sl_pct": 0.025, "max_dias": 25}
 ]
 
 # Universo Bitcoin (Binance Cross Margin 5X)

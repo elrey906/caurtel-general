@@ -74,7 +74,9 @@ def guardar_estado_agente(st):
 
 def activos_ocupados_por_otros_cerebros():
     """
-    Lee los estados de Cerebro 1 y Cerebro 3 para NUNCA duplicar un activo que ellos tengan
+    Lee los estados locales y las posiciones reales en BingX para:
+    1. Proteger sagradamente el SHORT de MSFT (NUNCA se toca, pero si da LONG SI se puede operar).
+    2. Evitar duplicar activos que ya tengan posiciones activas en la misma dirección.
     """
     ocupados = set()
     # 1. Cerebro 1 (Blue Chips)
@@ -83,7 +85,8 @@ def activos_ocupados_por_otros_cerebros():
         try:
             st1 = cargar_json(c1_path, {})
             for sym in st1.get("posiciones", {}).keys():
-                ocupados.add(sym)
+                if sym != "MSFT":
+                    ocupados.add(sym)
         except: pass
         
     # 2. Cerebro 3 (Trifecta)
@@ -92,8 +95,37 @@ def activos_ocupados_por_otros_cerebros():
         try:
             st3 = cargar_json(c3_path, {})
             for sym in st3.get("posiciones_activas", {}).keys():
-                ocupados.add(sym)
+                if sym != "MSFT":
+                    ocupados.add(sym)
         except: pass
+        
+    # 3. Consulta en vivo a la API de BingX
+    try:
+        live_positions = bingx_obtener_posiciones_activas()
+        for p in live_positions:
+            amt = float(p.get("positionAmt", 0))
+            if amt != 0:
+                bsym = p.get("symbol", "")
+                pside = p.get("positionSide", "").upper()
+                
+                # REGLA SAGRADA MSFT:
+                # Si es MSFT SHORT, es intocable y sagrado.
+                # Pero NO bloquea operar MSFT en LONG si el sistema detecta señal de compra.
+                if "MSFT" in bsym:
+                    if pside == "SHORT":
+                        # El SHORT de MSFT existe pero NO agregamos MSFT a ocupados para LONG
+                        continue
+                    elif pside == "LONG":
+                        # Si ya tiene un LONG abierto de MSFT, entonces sí está ocupado el cupo LONG
+                        ocupados.add("MSFT")
+                
+                # Mapear símbolos comunes
+                if "ETH" in bsym and pside == "LONG":
+                    ocupados.add("ETH")
+                elif "BNB" in bsym and pside == "LONG":
+                    ocupados.add("BNB")
+    except Exception as e:
+        log.warning(f"Aviso consultando posiciones vivas en BingX para ocupados: {e}")
         
     return ocupados
 

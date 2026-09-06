@@ -101,7 +101,12 @@ def bingx_cerrar_posicion_mercado(bingx_sym, pos_side, qty, client_order_id=None
     """
     Cierra posición a mercado en BingX modo cobertura
     Si pos_side era LONG, se envía SELL con positionSide=LONG
+    CANDADO DE ACERO: Si el símbolo es MSFT y pos_side es SHORT, ESTÁ ESTRICTAMENTE PROHIBIDO CERRARLA.
     """
+    if "MSFT" in str(bingx_sym).upper() and str(pos_side).upper() == "SHORT":
+        logging.getLogger().error("⛔ [INTENTO DE CIERRE BLOQUEADO] Regla sagrada: ¡EL SHORT DE MSFT NUNCA SE TOCA NI SE CIERRA!")
+        return {"code": -998, "msg": "REGLA_SAGRADA: EL SHORT DE MSFT NO SE TOCA"}
+        
     order_side = "SELL" if pos_side == "LONG" else "BUY"
     params = {
         "symbol": bingx_sym,

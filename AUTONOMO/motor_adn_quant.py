@@ -33,16 +33,21 @@ def obtener_velas_publicas(symbol, interval="1h", limit=100):
 
     # 2. Respaldo local de CSV si existe
     csv_paths = [
+        f"/home/h/Escritorio/SEPTIEMBRE/VELAS/{symbol}_1h.csv",
+        f"/home/h/Escritorio/SEPTIEMBRE/VELAS/{symbol.replace('USDT','')}_1h.csv",
         f"/home/h/Escritorio/RESPALDO/2027/VELAS/{symbol}_1h.csv",
+        f"/home/h/Escritorio/RESPALDO/2027/VELAS/{symbol.replace('USDT','')}_1h.csv",
         f"/home/h/Escritorio/SEPTIEMBRE/DATOS/{symbol}_1h.csv"
     ]
     for p in csv_paths:
         if os.path.exists(p):
             try:
                 df = pd.read_csv(p)
-                col_d = 'Datetime' if 'Datetime' in df.columns else 'timestamp'
+                col_d = 'Datetime' if 'Datetime' in df.columns else ('timestamp' if 'timestamp' in df.columns else df.columns[0])
                 df['dt'] = pd.to_datetime(df[col_d], utc=True)
-                df.rename(columns={'Close':'close','Open':'open','High':'high','Low':'low','Volume':'vol'}, inplace=True)
+                df.rename(columns={'Close':'close','Open':'open','High':'high','Low':'low','Volume':'vol','volume':'vol'}, inplace=True)
+                if 'vol' not in df.columns:
+                    df['vol'] = 1000.0
                 return df.sort_values('dt').tail(limit).reset_index(drop=True)
             except: pass
 
