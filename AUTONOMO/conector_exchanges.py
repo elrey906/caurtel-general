@@ -155,13 +155,13 @@ def binance_margin_account_info():
     s_time = binance_obtener_server_time()
     qs = f"recvWindow=60000&timestamp={s_time}"
     sig = binance_firmar(qs)
-    url = f"https://api.binance.com/sapi/v1/margin/account?{qs}&signature={sig}"
-    headers = {"X-MBX-APIKEY": BINANCE_KEY}
-    try:
-        r = requests.get(url, headers=headers, timeout=6)
-        if r.status_code == 200:
-            return r.json()
-    except: pass
+    for base in ["https://api3.binance.com", "https://api1.binance.com", "https://api.binance.com"]:
+        url = f"{base}/sapi/v1/margin/account?{qs}&signature={sig}"
+        try:
+            r = requests.get(url, headers=headers, timeout=12)
+            if r.status_code == 200:
+                return r.json()
+        except: pass
     return None
 
 def binance_margin_comprar_btc(monto_usd=10.0, client_order_id=None):
