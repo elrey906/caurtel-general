@@ -21,6 +21,7 @@ import streamlit as st
 from datetime import datetime, date, time as dtime
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     from streamlit_autorefresh import st_autorefresh
@@ -130,87 +131,206 @@ except Exception:
     def obtener_datos_margin_account(): return {"error": "binance_api_manager no disponible"}
     def obtener_precio_actual(sym="BTCUSDT"): return obtener_precio_publico(sym)
 
+_GLOBAL_LIVE_PRICES = {"data": {}, "ts": 0}
+
+def obtener_todas_cotizaciones_en_vivo(force_refresh=False):
+    """Descarga cotizaciones multi-mercado en paralelo (BingX Swap + BingX Spot + OKX + Bybit + Yahoo) con caché TTL."""
+    global _GLOBAL_LIVE_PRICES
+    now = time.time()
+    if not force_refresh and (now - _GLOBAL_LIVE_PRICES["ts"]) < 10 and len(_GLOBAL_LIVE_PRICES["data"]) > 100:
+        return _GLOBAL_LIVE_PRICES["data"]
+
+    headers_req = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    def _fetch_bingx_swap():
+        res = {}
+        try:
+            r = requests.get("https://open-api.bingx.com/openApi/swap/v2/quote/ticker", headers=headers_req, timeout=4).json()
+            if r.get("code") == 0 and "data" in r:
+                for item in r["data"]:
+                    s = item.get("symbol", "")
+                    try:
+                        p = float(item.get("lastPrice", 0))
+                        if p > 0:
+                            res[s] = p
+                            res[s.replace("-", "")] = p
+                            if s.startswith("NCSK") and "2USD" in s:
+                                raw_tk = s[4:s.index("2USD")]
+                                res[raw_tk] = p
+                                res[f"{raw_tk}-USDT"] = p
+                                res[f"{raw_tk}USDT"] = p
+                            elif s.startswith("NCCO1OILWTI"):
+                                res["WTI"] = p
+                                res["OIL"] = p
+                            elif s.startswith("NCSISP500"):
+                                res["SPY"] = p
+                                res["SP500"] = p
+                                res["^GSPC"] = p
+                    except Exception: pass
+        except Exception: pass
+        return res
+
+    def _fetch_bingx_spot():
+        res = {}
+        try:
+            r = requests.get("https://open-api.bingx.com/openApi/spot/v1/ticker/24hr", headers=headers_req, timeout=4).json()
+            if r.get("code") == 0 and "data" in r:
+                for item in r["data"]:
+                    s = item.get("symbol", "")
+                    try:
+                        p = float(item.get("lastPrice", 0))
+                        if p > 0:
+                            if s not in res: res[s] = p
+                            if s.replace("-", "") not in res: res[s.replace("-", "")] = p
+                    except Exception: pass
+        except Exception: pass
+        return res
+
+    def _fetch_okx_spot():
+        res = {}
+        try:
+            r = requests.get("https://www.okx.com/api/v5/market/tickers?instType=SPOT", headers=headers_req, timeout=4).json()
+            if r.get("code") == "0" and "data" in r:
+                for item in r["data"]:
+                    inst = item.get("instId", "")
+                    try:
+                        p = float(item.get("last", 0))
+                        if p > 0:
+                            if inst not in res: res[inst] = p
+                            if inst.replace("-", "") not in res: res[inst.replace("-", "")] = p
+                    except Exception: pass
+        except Exception: pass
+        return res
+
+    def _fetch_bybit_spot():
+        res = {}
+        try:
+            r = requests.get("https://api.bybit.com/v5/market/tickers?category=spot", headers=headers_req, timeout=4).json()
+            if r.get("retCode") == 0 and "result" in r:
+                for item in r["result"].get("list", []):
+                    s = item.get("symbol", "")
+                    try:
+                        p = float(item.get("lastPrice", 0))
+                        if p > 0:
+                            if s not in res: res[s] = p
+                            if s.endswith("USDT"):
+                                res[f"{s[:-4]}-USDT"] = p
+                    except Exception: pass
+        except Exception: pass
+        return res
+
+    prices = {}
+    with ThreadPoolExecutor(max_workers=4) as ex:
+        f1 = ex.submit(_fetch_bingx_swap)
+        f2 = ex.submit(_fetch_bingx_spot)
+        f3 = ex.submit(_fetch_okx_spot)
+        f4 = ex.submit(_fetch_bybit_spot)
+        
+        prices.update(f3.result())
+        prices.update(f4.result())
+        prices.update(f2.result())
+        prices.update(f1.result())
+
+    # Fallback Yahoo Finance para acciones o commodities faltantes
+    missing_stocks = [
+        ("GOOGL", "GOOGL"), ("MSFT", "MSFT"), ("AMZN", "AMZN"), ("NVDA", "NVDA"),
+        ("AAPL", "AAPL"), ("MSTR", "MSTR"), ("TSLA", "TSLA"), ("META", "META"),
+        ("AMD", "AMD"), ("AVGO", "AVGO"), ("COIN", "COIN"), ("QQQ", "QQQ"),
+        ("SPY", "SPY"), ("^GSPC", "^GSPC"), ("DJI", "^DJI"), ("NU", "NU"),
+        ("PLTR", "PLTR"), ("NFLX", "NFLX"), ("INTC", "INTC"), ("QCOM", "QCOM"),
+        ("TSM", "TSM"), ("WTI", "CL=F"), ("PAXG", "GC=F")
+    ]
+    def _fetch_y(tk, ysym):
+        try:
+            u = f"https://query1.finance.yahoo.com/v8/finance/chart/{ysym}?interval=1d&range=1d"
+            ry = requests.get(u, headers=headers_req, timeout=3)
+            if ry.status_code == 200:
+                res_y = ry.json().get("chart", {}).get("result", [])
+                if res_y:
+                    p = float(res_y[0].get("meta", {}).get("regularMarketPrice", 0))
+                    if p > 0: return tk, p
+        except Exception: pass
+        return tk, 0.0
+
+    needed_y = [m for m in missing_stocks if m[0] not in prices or prices[m[0]] <= 0]
+    if needed_y:
+        with ThreadPoolExecutor(max_workers=6) as ex:
+            futs = [ex.submit(_fetch_y, tk, ysym) for tk, ysym in needed_y]
+            for f in futs:
+                tk, p = f.result()
+                if p > 0: prices[tk] = p
+
+    if prices:
+        _GLOBAL_LIVE_PRICES["data"] = prices
+        _GLOBAL_LIVE_PRICES["ts"] = now
+
+    return _GLOBAL_LIVE_PRICES["data"]
+
 def obtener_precio_publico(sym="BTCUSDT"):
-    """Consulta múltiples APIs públicas globales de alta disponibilidad sin requerir autenticación"""
+    """Consulta cotización en vivo con cascada ultrarrápida multi-fuente"""
+    all_p = obtener_todas_cotizaciones_en_vivo()
+    
+    # 1. Búsqueda directa e indexada en caché vivo
+    candidates = [
+        sym,
+        sym.upper(),
+        sym.replace("-", ""),
+        f"{sym}-USDT",
+        f"{sym}USDT",
+        f"NCSK{sym}2USD-USDT",
+        sym.replace("USDT", ""),
+        sym.split("-")[0] if "-" in sym else sym
+    ]
+    for cand in candidates:
+        if cand in all_p and all_p[cand] > 0:
+            return float(all_p[cand])
+
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
-    # 1. OKX Ticker (Alta disponibilidad y velocidad global)
+    # 2. BingX Swap Quote Directo
     try:
-        okx_inst = "BTC-USDT" if "BTC" in sym else sym
-        url_okx = f"https://www.okx.com/api/v5/market/ticker?instId={okx_inst}"
-        r = requests.get(url_okx, headers=headers, timeout=3)
+        r = requests.get(f"https://open-api.bingx.com/openApi/swap/v2/quote/ticker?symbol={sym}", headers=headers, timeout=3)
+        if r.status_code == 200:
+            d = r.json().get("data", {})
+            if isinstance(d, dict) and "lastPrice" in d:
+                p = float(d["lastPrice"])
+                if p > 0: return p
+    except Exception: pass
+
+    # 3. OKX Directo
+    try:
+        okx_inst = "BTC-USDT" if "BTC" in sym else (f"{sym}-USDT" if not sym.endswith("USDT") else sym)
+        r = requests.get(f"https://www.okx.com/api/v5/market/ticker?instId={okx_inst}", headers=headers, timeout=3)
         if r.status_code == 200:
             data = r.json().get("data", [])
             if data and "last" in data[0]:
                 p = float(data[0]["last"])
                 if p > 0: return p
-    except Exception:
-        pass
+    except Exception: pass
 
-    # 2. Coinbase Spot Abierto (Foco BTC/USD / ETH/USD / SOL/USD)
+    # 4. Coinbase Spot Directo
     try:
-        coin_id = "BTC" if "BTC" in sym else ("ETH" if "ETH" in sym else ("SOL" if "SOL" in sym else "BTC"))
+        coin_id = "BTC" if "BTC" in sym else ("ETH" if "ETH" in sym else ("SOL" if "SOL" in sym else sym.replace("-USDT", "").replace("USDT", "")))
         r = requests.get(f"https://api.coinbase.com/v2/prices/{coin_id}-USD/spot", headers=headers, timeout=3)
         if r.status_code == 200:
             data = r.json()
             if "data" in data and "amount" in data["data"]:
                 p = float(data["data"]["amount"])
                 if p > 0: return p
-    except Exception:
-        pass
+    except Exception: pass
 
-    # 3. Bybit Ticker (Spot)
+    # 5. Bybit Directo
     try:
-        byb_sym = "BTCUSDT" if "BTC" in sym else sym.replace("-", "")
-        url_byb = f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={byb_sym}"
-        r = requests.get(url_byb, headers=headers, timeout=3)
+        byb_sym = sym.replace("-", "")
+        r = requests.get(f"https://api.bybit.com/v5/market/tickers?category=spot&symbol={byb_sym}", headers=headers, timeout=3)
         if r.status_code == 200:
             lst = r.json().get("result", {}).get("list", [])
             if lst and "lastPrice" in lst[0]:
                 p = float(lst[0]["lastPrice"])
                 if p > 0: return p
-    except Exception:
-        pass
+    except Exception: pass
 
-    # 4. Kraken Spot Abierto
-    try:
-        r = requests.get("https://api.kraken.com/0/public/Ticker?pair=XBTUSDT", headers=headers, timeout=3)
-        if r.status_code == 200:
-            res = r.json().get("result", {})
-            for k in res:
-                p = float(res[k]["c"][0])
-                if p > 0: return p
-    except Exception:
-        pass
-
-    # 5. Yahoo Finance API (Para BTC y Activos Macro)
-    try:
-        r = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?interval=1d&range=1d", headers=headers, timeout=3)
-        if r.status_code == 200:
-            chart = r.json().get("chart", {}).get("result", [])
-            if chart:
-                p = float(chart[0]["meta"].get("regularMarketPrice", 0))
-                if p > 0: return p
-    except Exception:
-        pass
-
-    # 6. Binance Vision & Endpoints de Mercado Abierto
-    for url in [
-        f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym.replace('-', '')}",
-        f"https://api3.binance.com/api/v3/ticker/price?symbol={sym.replace('-', '')}",
-        f"https://api.binance.com/api/v3/ticker/price?symbol={sym.replace('-', '')}"
-    ]:
-        try:
-            r = requests.get(url, headers=headers, timeout=3)
-            if r.status_code == 200:
-                data = r.json()
-                if "price" in data:
-                    p = float(data["price"])
-                    if p > 0: return p
-        except Exception:
-            pass
-
-    return 79800.0
+    return 79900.0 if "BTC" in sym else 100.0
 
 
 PLACEHOLDER_SCRIPT = False
@@ -516,21 +636,30 @@ st.sidebar.markdown("---")
 st.sidebar.markdown(f"🕐 **Hora VET:** `{now_vet().strftime('%H:%M:%S')}`")
 
 # ── ENCABEZADO ─────────────────────────────────────────────────────────────
-st.markdown("""
-<div class="hdr">
-  <div style="display:flex;align-items:center;justify-content:space-between;">
-    <div>
-      <h1>🏆 CAZADOR PRO — CUARTEL GENERAL</h1>
-      <p>Dashboard Maestro Unificado · Binance Margin 5X · BTC On-Chain & Macro · Puerto 8500</p>
+col_hdr_l, col_hdr_r = st.columns([3.2, 1.2])
+with col_hdr_l:
+    st.markdown("""
+    <div class="hdr" style="padding:14px 20px; margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <h1 style="margin:0;font-size:1.8rem;font-weight:900;">🏆 CAZADOR PRO — CUARTEL GENERAL</h1>
+          <p style="margin:4px 0 0 0;font-size:0.85rem;color:#94a3b8;">Dashboard Maestro Unificado · Multimercado en Vivo · Puerto 8500</p>
+        </div>
+        <div><span class="badge-green" style="font-size:0.8rem;padding:4px 10px;">🟢 PRECIOS EN VIVO 24/7</span></div>
+      </div>
     </div>
-    <div><span class="badge-green">🟢 EN VIVO</span></div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
-# Auto-refresh de pantalla cada 8 horas (28,800,000 milisegundos)
+with col_hdr_r:
+    st.markdown("<div style='height:4px;'></div>", unsafe_allow_html=True)
+    if st.button("🔄 ACTUALIZAR PRECIOS EN VIVO", key="btn_top_live_refresh_global", use_container_width=True, type="primary"):
+        st.cache_data.clear()
+        obtener_todas_cotizaciones_en_vivo(force_refresh=True)
+        st.rerun()
+
+# Auto-refresh de pantalla cada 30 segundos para mantener cotizaciones 100% vivas
 if HAS_AUTOREFRESH:
-    st_autorefresh(interval=8 * 3600 * 1000, key="auto_refresh_8h")
+    st_autorefresh(interval=30 * 1000, key="auto_refresh_30s")
 
 # ── CARGA DE DATOS (SINCRONIZACIÓN CADA 8 HORAS) ──────────────────────────
 DATOS_12H_FILE = os.path.join(DATOS_DIR, "macro_onchain_12h.json")
@@ -587,11 +716,28 @@ def cargar_funding_rate_oi():
         pass
     return {"funding_rate": funding_rate, "open_interest": oi_btc}
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=30)
 def cargar_klines(interval, limit):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     
-    # 1. OKX Candlesticks (Alta disponibilidad global)
+    # 1. BingX Swap Kline API (Directo y ultra rápido)
+    bx_bar_map = {"1h": "1h", "4h": "4h", "1d": "1d", "1D": "1d", "1w": "1w", "1W": "1w", "1M": "1M"}
+    bx_bar = bx_bar_map.get(interval, "1h")
+    try:
+        url_bx = f"https://open-api.bingx.com/openApi/swap/v3/quote/klines?symbol=BTC-USDT&interval={bx_bar}&limit={min(200, limit)}"
+        r_bx = requests.get(url_bx, headers=headers, timeout=4).json()
+        if r_bx.get("code") == 0 and "data" in r_bx and len(r_bx["data"]) > 0:
+            df_bx = pd.DataFrame(r_bx["data"])
+            df_bx.rename(columns={"open":"O", "high":"H", "low":"L", "close":"C", "volume":"V", "time":"ts"}, inplace=True)
+            for c2 in ["O", "H", "L", "C", "V"]: df_bx[c2] = df_bx[c2].astype(float)
+            df_bx["ts"] = pd.to_datetime(df_bx["ts"].astype(float), unit="ms")
+            df_bx.sort_values("ts", inplace=True)
+            df_bx.set_index("ts", inplace=True)
+            return df_bx.tail(limit)
+    except Exception:
+        pass
+
+    # 2. OKX Candlesticks (Alta disponibilidad global)
     bar_map_okx = {"1h": "1H", "4h": "4H", "1d": "1D", "1D": "1D", "1w": "1W", "1W": "1W", "1M": "1M"}
     bar_okx = bar_map_okx.get(interval, "1H")
     try:
@@ -610,7 +756,25 @@ def cargar_klines(interval, limit):
     except Exception:
         pass
 
-    # 2. Kraken OHLC API
+    # 3. Bybit Kline API
+    byb_int_map = {"1h": "60", "4h": "240", "1d": "D", "1D": "D", "1w": "W", "1W": "W", "1M": "M"}
+    byb_int = byb_int_map.get(interval, "60")
+    try:
+        url_byb = f"https://api.bybit.com/v5/market/kline?category=linear&symbol=BTCUSDT&interval={byb_int}&limit={min(200, limit)}"
+        r_byb = requests.get(url_byb, headers=headers, timeout=4).json()
+        if r_byb.get("retCode") == 0 and "result" in r_byb:
+            lst_byb = r_byb["result"].get("list", [])
+            if lst_byb and len(lst_byb) > 0:
+                df_byb = pd.DataFrame(lst_byb, columns=["ts", "O", "H", "L", "C", "V", "turnover"])
+                for c2 in ["O", "H", "L", "C", "V"]: df_byb[c2] = df_byb[c2].astype(float)
+                df_byb["ts"] = pd.to_datetime(df_byb["ts"].astype(float), unit="ms")
+                df_byb.sort_values("ts", inplace=True)
+                df_byb.set_index("ts", inplace=True)
+                return df_byb.tail(limit)
+    except Exception:
+        pass
+
+    # 4. Kraken OHLC API
     kraken_int_map = {"1h": 60, "4h": 240, "1d": 1440, "1D": 1440, "1w": 10080, "1W": 10080, "1M": 21600}
     k_int = kraken_int_map.get(interval, 60)
     try:
@@ -631,41 +795,7 @@ def cargar_klines(interval, limit):
     except Exception:
         pass
 
-    # 3. Coinbase Pro / Advanced Candle API (Fallback universal)
-    granularity_map = {"1h": 3600, "4h": 21600, "1d": 86400, "1w": 86400, "1M": 86400}
-    gran = granularity_map.get(interval, 3600)
-    try:
-        url_cb = f"https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity={gran}"
-        r_cb = requests.get(url_cb, headers=headers, timeout=4)
-        if r_cb.status_code == 200:
-            res_cb = r_cb.json()
-            if isinstance(res_cb, list) and len(res_cb) > 0:
-                # [time, low, high, open, close, volume]
-                df_cb = pd.DataFrame(res_cb, columns=["ts", "L", "H", "O", "C", "V"])
-                for c2 in ["O", "H", "L", "C", "V"]: df_cb[c2] = df_cb[c2].astype(float)
-                df_cb["ts"] = pd.to_datetime(df_cb["ts"], unit="s")
-                df_cb.sort_values("ts", inplace=True)
-                df_cb.set_index("ts", inplace=True)
-                return df_cb.tail(limit)
-    except Exception:
-        pass
-
-    # 4. Binance Vision & Endpoints Globales
-    for base in ["https://data-api.binance.vision", "https://api3.binance.com", "https://api.binance.com"]:
-        try:
-            url = f"{base}/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit={limit}"
-            r = requests.get(url, headers=headers, timeout=5)
-            if r.status_code == 200:
-                res = r.json()
-                if isinstance(res, list) and len(res) > 0:
-                    df = pd.DataFrame(res, columns=["ts","O","H","L","C","V","ct","qv","t","tb","tq","i"])
-                    for c2 in ["O","H","L","C","V"]: df[c2] = df[c2].astype(float)
-                    df["ts"] = pd.to_datetime(df["ts"], unit="ms")
-                    df.set_index("ts", inplace=True)
-                    return df
-        except Exception:
-            pass
-
+    # 5. Fallback CSV Local
     for p_csv in [
         os.path.join(BASE_DIR, "VELAS", "BTC_1h.csv"),
         os.path.join(BASE_DIR, "DATOS", "BTC_1h.csv"),
@@ -680,7 +810,6 @@ def cargar_klines(interval, limit):
                 df_loc.set_index("ts", inplace=True)
                 for c2 in ["O","H","L","C","V"]: df_loc[c2] = df_loc[c2].astype(float)
                 
-                # Resampleo correcto según temporalidad si se pide mayor que 1h
                 if interval == "4h":
                     df_res = df_loc.resample("4h").agg({"O":"first","H":"max","L":"min","C":"last","V":"sum"}).dropna()
                     return df_res.tail(limit)
@@ -700,45 +829,34 @@ def cargar_klines(interval, limit):
 
     return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
+@st.cache_data(ttl=60)
 def cargar_macro():
-    m = {"oro": 2485.5, "oro_chg": 0.82, "petroleo": 76.40, "dxy": 101.50,
+    m = {"oro": 4430.0, "oro_chg": 0.82, "petroleo": 91.50, "dxy": 101.50,
          "fed": 5.25, "puell": 0.78, "hashprice": 0.062, "etfs_flujo": 142.5,
-         "pmi": 51.4, "btc_oro": 31.5}
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+         "pmi": 51.4, "btc_oro": 18.0}
     
-    # 1. Oro y Petróleo en vivo desde Yahoo Finance
-    for sym_y, key_m in [("GC=F", "oro"), ("CL=F", "petroleo"), ("DX-Y.NYB", "dxy")]:
-        try:
-            r = requests.get(f"https://query1.finance.yahoo.com/v8/finance/chart/{sym_y}?interval=1d&range=1d", headers=headers, timeout=3)
-            if r.status_code == 200:
-                res = r.json().get("chart", {}).get("result", [])
-                if res:
-                    meta = res[0].get("meta", {})
-                    p = float(meta.get("regularMarketPrice", 0))
-                    prev = float(meta.get("chartPreviousClose", p))
-                    if p > 0:
-                        m[key_m] = p
-                        if key_m == "oro" and prev > 0:
-                            m["oro_chg"] = round(((p - prev) / prev) * 100.0, 2)
-        except Exception:
-            pass
+    all_p = obtener_todas_cotizaciones_en_vivo()
+    if "PAXG-USDT" in all_p and all_p["PAXG-USDT"] > 0:
+        m["oro"] = all_p["PAXG-USDT"]
+    elif "PAXG" in all_p and all_p["PAXG"] > 0:
+        m["oro"] = all_p["PAXG"]
+    elif "GOLD" in all_p and all_p["GOLD"] > 0:
+        m["oro"] = all_p["GOLD"]
 
-    # 2. Respaldo PAXG desde OKX si falló Yahoo
-    if m["oro"] <= 2485.5:
-        try:
-            r_okx = requests.get("https://www.okx.com/api/v5/market/ticker?instId=PAXG-USDT", headers=headers, timeout=3)
-            if r_okx.status_code == 200:
-                data = r_okx.json().get("data", [])
-                if data and "last" in data[0]:
-                    m["oro"] = float(data[0]["last"])
-        except Exception:
-            pass
+    if "WTI" in all_p and all_p["WTI"] > 0:
+        m["petroleo"] = all_p["WTI"]
+    elif "NCCO1OILWTI2USD-USDT" in all_p and all_p["NCCO1OILWTI2USD-USDT"] > 0:
+        m["petroleo"] = all_p["NCCO1OILWTI2USD-USDT"]
+
+    if "SPY" in all_p and all_p["SPY"] > 0:
+        m["spy"] = all_p["SPY"]
+    if "QQQ" in all_p and all_p["QQQ"] > 0:
+        m["qqq"] = all_p["QQQ"]
 
     return m
 
 data_margin = obtener_datos_margin_account()
-btc_price   = obtener_precio_actual("BTCUSDT") or 78870.0
+btc_price   = obtener_precio_actual("BTCUSDT") or 79900.0
 fg          = cargar_fear_greed()
 macro       = cargar_macro()
 
@@ -3638,29 +3756,29 @@ with tab7:
     # UNIVERSO COMPLETO: TOP 20 WALL STREET (MSTR, SPCX, QQQ) + TOP 150 CRIPTO
     # ══════════════════════════════════════════════════════════════════
     ECOSISTEMA_WALL_STREET_TOP20 = [
-        {"nombre": "MicroStrategy", "ticker": "MSTR", "symbol": "NCSKMSTR2USD-USDT", "csv": "MSTR", "precio_ref": 124.61, "cat": "💻 Acciones Tech / MSTR"},
-        {"nombre": "NVIDIA", "ticker": "NVDA", "symbol": "NCSKNVDA2USD-USDT", "csv": "NVDA", "precio_ref": 211.30, "cat": "💻 Acciones Tech"},
-        {"nombre": "Apple", "ticker": "AAPL", "symbol": "NCSKAAPL2USD-USDT", "csv": "AAPL", "precio_ref": 312.95, "cat": "💻 Acciones Tech"},
-        {"nombre": "Microsoft", "ticker": "MSFT", "symbol": "NCSKMSFT2USD-USDT", "csv": "MSFT", "precio_ref": 495.07, "cat": "💻 Acciones Tech"},
-        {"nombre": "Amazon", "ticker": "AMZN", "symbol": "NCSKAMAZON2USD-USDT", "csv": "AMZN", "precio_ref": 256.22, "cat": "💻 Acciones Tech"},
-        {"nombre": "Alphabet (Google)", "ticker": "GOOGL", "symbol": "NCSKALPHABET2USD-USDT", "csv": "GOOGL", "precio_ref": 340.63, "cat": "💻 Acciones Tech"},
-        {"nombre": "Tesla", "ticker": "TSLA", "symbol": "NCSKTSLA2USD-USDT", "csv": "TSLA", "precio_ref": 349.22, "cat": "💻 Acciones Tech"},
-        {"nombre": "Meta Platforms", "ticker": "META", "symbol": "NCSKMETA2USD-USDT", "csv": "META", "precio_ref": 571.07, "cat": "💻 Acciones Tech"},
-        {"nombre": "AMD", "ticker": "AMD", "symbol": "NCSKAMD2USD-USDT", "csv": "AMD", "precio_ref": 477.00, "cat": "💻 Acciones Tech"},
-        {"nombre": "Broadcom", "ticker": "AVGO", "symbol": "NCSKAVGO2USD-USDT", "csv": "AVGO", "precio_ref": 371.56, "cat": "💻 Acciones Tech"},
-        {"nombre": "Coinbase", "ticker": "COIN", "symbol": "NCSKCOINBASE2USD-USDT", "csv": "COIN", "precio_ref": 190.75, "cat": "💻 Acciones Tech"},
-        {"nombre": "Invesco QQQ (Nasdaq 100)", "ticker": "QQQ", "symbol": "NCSKQQQ2USD-USDT", "csv": "QQQ", "precio_ref": 710.24, "cat": "🏆 Índices & ETFs"},
-        {"nombre": "Space X (Pre-IPO / AI)", "ticker": "SPCX", "symbol": "SPCX-USDT", "csv": None, "precio_ref": 150.84, "cat": "🚀 Space X / AI Tech"},
-        {"nombre": "S&P 500 Index (SPY / GSPC)", "ticker": "SPY", "symbol": "NCSISP5002USD-USDT", "csv": "^GSPC", "precio_ref": 7679.24, "cat": "🏆 Índices & ETFs"},
+        {"nombre": "MicroStrategy", "ticker": "MSTR", "symbol": "NCSKMSTR2USD-USDT", "csv": "MSTR", "precio_ref": 144.50, "cat": "💻 Acciones Tech / MSTR"},
+        {"nombre": "NVIDIA", "ticker": "NVDA", "symbol": "NCSKNVDA2USD-USDT", "csv": "NVDA", "precio_ref": 231.50, "cat": "💻 Acciones Tech"},
+        {"nombre": "Apple", "ticker": "AAPL", "symbol": "NCSKAAPL2USD-USDT", "csv": "AAPL", "precio_ref": 321.90, "cat": "💻 Acciones Tech"},
+        {"nombre": "Microsoft", "ticker": "MSFT", "symbol": "NCSKMSFT2USD-USDT", "csv": "MSFT", "precio_ref": 502.45, "cat": "💻 Acciones Tech"},
+        {"nombre": "Amazon", "ticker": "AMZN", "symbol": "NCSKAMZN2USD-USDT", "csv": "AMZN", "precio_ref": 259.15, "cat": "💻 Acciones Tech"},
+        {"nombre": "Alphabet (Google)", "ticker": "GOOGL", "symbol": "NCSKGOOGL2USD-USDT", "csv": "GOOGL", "precio_ref": 339.45, "cat": "💻 Acciones Tech"},
+        {"nombre": "Tesla", "ticker": "TSLA", "symbol": "NCSKTSLA2USD-USDT", "csv": "TSLA", "precio_ref": 356.30, "cat": "💻 Acciones Tech"},
+        {"nombre": "Meta Platforms", "ticker": "META", "symbol": "NCSKMETA2USD-USDT", "csv": "META", "precio_ref": 615.30, "cat": "💻 Acciones Tech"},
+        {"nombre": "AMD", "ticker": "AMD", "symbol": "NCSKAMD2USD-USDT", "csv": "AMD", "precio_ref": 480.00, "cat": "💻 Acciones Tech"},
+        {"nombre": "Broadcom", "ticker": "AVGO", "symbol": "NCSKAVGO2USD-USDT", "csv": "AVGO", "precio_ref": 362.15, "cat": "💻 Acciones Tech"},
+        {"nombre": "Coinbase", "ticker": "COIN", "symbol": "NCSKCOIN2USD-USDT", "csv": "COIN", "precio_ref": 186.20, "cat": "💻 Acciones Tech"},
+        {"nombre": "Invesco QQQ (Nasdaq 100)", "ticker": "QQQ", "symbol": "NCSKQQQ2USD-USDT", "csv": "QQQ", "precio_ref": 720.85, "cat": "🏆 Índices & ETFs"},
+        {"nombre": "Space X (Pre-IPO / AI)", "ticker": "SPCX", "symbol": "NCSKSPCX2USD-USDT", "csv": None, "precio_ref": 151.05, "cat": "🚀 Space X / AI Tech"},
+        {"nombre": "S&P 500 Index (SPY / GSPC)", "ticker": "SPY", "symbol": "NCSISP5002USD-USDT", "csv": "^GSPC", "precio_ref": 7725.00, "cat": "🏆 Índices & ETFs"},
         {"nombre": "Dow Jones Industrial", "ticker": "DJI", "symbol": "NCSIDOWJONES2USD-USDT", "csv": "DJI", "precio_ref": 53562.00, "cat": "🏆 Índices & ETFs"},
-        {"nombre": "Nubank", "ticker": "NU", "symbol": "NCSKNU2USD-USDT", "csv": "NU", "precio_ref": 15.27, "cat": "💻 Acciones FinTech"},
-        {"nombre": "Palantir Technologies", "ticker": "PLTR", "symbol": "NCSKPLTR2USD-USDT", "csv": None, "precio_ref": 58.50, "cat": "💻 Acciones Tech"},
-        {"nombre": "Netflix", "ticker": "NFLX", "symbol": "NCSKNFLX2USD-USDT", "csv": None, "precio_ref": 840.00, "cat": "💻 Acciones Tech"},
-        {"nombre": "Intel Corporation", "ticker": "INTC", "symbol": "NCSKINTC2USD-USDT", "csv": None, "precio_ref": 22.80, "cat": "💻 Acciones Tech"},
-        {"nombre": "Qualcomm", "ticker": "QCOM", "symbol": "NCSKQCOM2USD-USDT", "csv": None, "precio_ref": 168.50, "cat": "💻 Acciones Tech"},
-        {"nombre": "Taiwan Semiconductor", "ticker": "TSM", "symbol": "NCSKTSM2USD-USDT", "csv": None, "precio_ref": 192.30, "cat": "💻 Acciones Tech"},
-        {"nombre": "Petróleo WTI", "ticker": "WTI", "symbol": "NCCO1OILWTI2USD-USDT", "csv": None, "precio_ref": 76.40, "cat": "🏆 Commodities e Índices"},
-        {"nombre": "Oro (PAXG)", "ticker": "PAXG", "symbol": "PAXG-USDT", "csv": None, "precio_ref": 2485.50, "cat": "🏆 Commodities e Índices"}
+        {"nombre": "Nubank", "ticker": "NU", "symbol": "NCSKNU2USD-USDT", "csv": "NU", "precio_ref": 15.35, "cat": "💻 Acciones FinTech"},
+        {"nombre": "Palantir Technologies", "ticker": "PLTR", "symbol": "NCSKPLTR2USD-USDT", "csv": None, "precio_ref": 176.25, "cat": "💻 Acciones Tech"},
+        {"nombre": "Netflix", "ticker": "NFLX", "symbol": "NCSKNFLX2USD-USDT", "csv": None, "precio_ref": 78.25, "cat": "💻 Acciones Tech"},
+        {"nombre": "Intel Corporation", "ticker": "INTC", "symbol": "NCSKINTC2USD-USDT", "csv": None, "precio_ref": 97.40, "cat": "💻 Acciones Tech"},
+        {"nombre": "Qualcomm", "ticker": "QCOM", "symbol": "NCSKQCOM2USD-USDT", "csv": None, "precio_ref": 169.50, "cat": "💻 Acciones Tech"},
+        {"nombre": "Taiwan Semiconductor", "ticker": "TSM", "symbol": "NCSKTSMU2USD-USDT", "csv": None, "precio_ref": 430.10, "cat": "💻 Acciones Tech"},
+        {"nombre": "Petróleo WTI", "ticker": "WTI", "symbol": "NCCO1OILWTI2USD-USDT", "csv": None, "precio_ref": 91.95, "cat": "🏆 Commodities e Índices"},
+        {"nombre": "Oro (PAXG)", "ticker": "PAXG", "symbol": "PAXG-USDT", "csv": None, "precio_ref": 4420.70, "cat": "🏆 Commodities e Índices"}
     ]
 
     ECOSISTEMA_TOP150_CRIPTO = [
@@ -3854,89 +3972,14 @@ with tab7:
     with c_t7_ref:
         if st.button("🔄 Refrescar Mapa de Calor", key="btn_refresh_t7", use_container_width=True, type="primary"):
             st.cache_data.clear()
+            obtener_todas_cotizaciones_en_vivo(force_refresh=True)
             st.rerun()
     st.markdown("<br>", unsafe_allow_html=True)
 
-    @st.cache_data(ttl=60)
+    @st.cache_data(ttl=20)
     def procesar_mapa_de_calor_total():
-        # Consulta global de precios en vivo (OKX + Bybit + KuCoin + Yahoo Finance + BingX)
-        headers_req = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        res_prices = {}
-        
-        # 1. OKX Tickers (Bulk Spot & Crypto Universal)
-        try:
-            r_okx = requests.get('https://www.okx.com/api/v5/market/tickers?instType=SPOT', headers=headers_req, timeout=4).json()
-            if r_okx.get("code") == "0" and "data" in r_okx:
-                for item_okx in r_okx["data"]:
-                    inst = item_okx.get("instId", "")
-                    p_val = clean_num(item_okx.get("last", 0))
-                    if p_val > 0:
-                        res_prices[inst] = p_val
-                        res_prices[inst.replace("-", "")] = p_val
-        except Exception:
-            pass
-
-        # 2. Bybit Tickers (Bulk Spot)
-        try:
-            r_byb = requests.get('https://api.bybit.com/v5/market/tickers?category=spot', headers=headers_req, timeout=4).json()
-            if r_byb.get("retCode") == 0 and "result" in r_byb:
-                for item_byb in r_byb["result"].get("list", []):
-                    s_byb = item_byb.get("symbol", "")
-                    p_byb = clean_num(item_byb.get("lastPrice", 0))
-                    if p_byb > 0:
-                        if s_byb not in res_prices: res_prices[s_byb] = p_byb
-                        if s_byb.endswith("USDT"):
-                            k_byb = f"{s_byb[:-4]}-USDT"
-                            if k_byb not in res_prices: res_prices[k_byb] = p_byb
-        except Exception:
-            pass
-
-        # 3. Yahoo Finance para Acciones de Wall Street, Índices y Commodities
-        stocks_tickers = [s["ticker"] for s in ECOSISTEMA_WALL_STREET_TOP20]
-        map_yahoo = {
-            "^GSPC": "^GSPC",
-            "SPY": "SPY",
-            "DJI": "^DJI",
-            "WTI": "CL=F",
-            "PAXG": "GC=F",
-            "SPCX": "SPY"
-        }
-        
-        from concurrent.futures import ThreadPoolExecutor
-        def _fetch_single_yahoo(tk):
-            y_sym = map_yahoo.get(tk, tk)
-            u = f"https://query1.finance.yahoo.com/v8/finance/chart/{y_sym}?interval=1d&range=1d"
-            try:
-                ry = requests.get(u, headers=headers_req, timeout=3)
-                if ry.status_code == 200:
-                    res_y = ry.json().get("chart", {}).get("result", [])
-                    if res_y:
-                        meta = res_y[0].get("meta", {})
-                        py = clean_num(meta.get("regularMarketPrice", 0))
-                        if py > 0: return tk, py
-            except Exception:
-                pass
-            return tk, 0.0
-
-        try:
-            with ThreadPoolExecutor(max_workers=10) as executor:
-                futures = [executor.submit(_fetch_single_yahoo, tk) for tk in stocks_tickers]
-                for f in futures:
-                    tk_res, p_res = f.result()
-                    if p_res > 0:
-                        res_prices[tk_res] = p_res
-        except Exception:
-            pass
-
-        # 4. Respaldo BingX / Binance si faltara algún activo
-        if len(res_prices) < 20:
-            try:
-                r = requests.get('https://open-api.bingx.com/openApi/swap/v2/quote/ticker', headers=headers_req, timeout=5).json()
-                if r.get("code") == 0 and "data" in r:
-                    for t in r["data"]:
-                        res_prices[t["symbol"]] = clean_num(t.get("lastPrice", 0))
-            except Exception:
-                pass
+        # Consulta global de precios en vivo (BingX Swap + BingX Spot + OKX + Bybit + Yahoo)
+        res_prices = obtener_todas_cotizaciones_en_vivo()
 
         data_results = []
         velas_dir = os.path.join(BASE_DIR, "VELAS")
@@ -3950,12 +3993,24 @@ with tab7:
             csv_name = item.get("csv")
             p_ref = float(item["precio_ref"])
 
-            # 1. Obtener precio en vivo o fallback robusto
-            p_live = res_prices.get(sym, 0.0)
-            if p_live <= 0 and ticker in res_prices:
-                p_live = res_prices[ticker]
-            if p_live <= 0 and sym_bin and sym_bin in res_prices:
-                p_live = res_prices[sym_bin]
+            # 1. Obtener precio en vivo prioritario desde BingX Swap / BingX Spot / OKX / Bybit / Yahoo
+            p_live = 0.0
+            candidate_keys = [
+                sym,
+                f"NCSK{ticker}2USD-USDT",
+                ticker,
+                f"{ticker}-USDT",
+                f"{ticker}USDT",
+                sym_bin,
+                sym.replace("-", "") if sym else None,
+                sym.replace("USDT", "") if sym else None
+            ]
+            for ck in candidate_keys:
+                if ck and ck in res_prices:
+                    pval = clean_num(res_prices[ck], 0.0)
+                    if pval > 0:
+                        p_live = pval
+                        break
 
             # 2. Cargar velas históricas desde caché local VELAS para cálculo de indicadores
             df = None
@@ -4436,6 +4491,7 @@ with tab8:
     with c_t8_b:
         if st.button("🔄 Refrescar Precios Élite", key="btn_refresh_t8", use_container_width=True, type="primary"):
             st.cache_data.clear()
+            obtener_todas_cotizaciones_en_vivo(force_refresh=True)
             st.rerun()
 
     raw_heat = procesar_mapa_de_calor_total()
