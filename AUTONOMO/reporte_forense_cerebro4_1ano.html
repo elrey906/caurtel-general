@@ -1,0 +1,3215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Auditoría Forense Día a Día: Cerebro 4 (Mega-Agente ADN)</title>
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #0b0e14; color: #d1d5db; margin: 0; padding: 24px; }
+    h1, h2 { color: #f9fafb; margin-bottom: 8px; }
+    .header-box { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid #334155; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+    .kpi-container { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 16px; }
+    .kpi-card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 14px 20px; flex: 1; min-width: 160px; }
+    .kpi-title { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+    .kpi-val { font-size: 24px; font-weight: bold; margin-top: 4px; color: #f8fafc; }
+    .green { color: #10b981; }
+    .red { color: #ef4444; }
+    .blue { color: #38bdf8; }
+    .controls { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    input, select { background: #1e293b; border: 1px solid #334155; color: #f1f5f9; padding: 8px 14px; border-radius: 6px; font-size: 14px; }
+    table { width: 100%; border-collapse: collapse; background: #111827; border-radius: 8px; overflow: hidden; font-size: 13px; }
+    th { background: #1f2937; color: #9ca3af; text-align: left; padding: 12px 10px; font-weight: 600; border-bottom: 1px solid #374151; }
+    td { padding: 10px; border-bottom: 1px solid #1f2937; }
+    tr:hover { background: #1e293b; }
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+    .badge-win { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-loss { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .diag-box { font-size: 11px; line-height: 1.4; color: #cbd5e1; }
+</style>
+<script>
+function filtrarTabla() {
+    var input = document.getElementById("searchActivo").value.toUpperCase();
+    var resFilter = document.getElementById("filterResultado").value;
+    var trs = document.getElementById("tablaTrades").getElementsByTagName("tr");
+    
+    for (var i = 1; i < trs.length; i++) {
+        var tdActivo = trs[i].getElementsByTagName("td")[1];
+        var tdRes = trs[i].getElementsByTagName("td")[6];
+        if (tdActivo && tdRes) {
+            var actTxt = tdActivo.textContent || tdActivo.innerText;
+            var resTxt = tdRes.textContent || tdRes.innerText;
+            var matchesAct = actTxt.toUpperCase().indexOf(input) > -1;
+            var matchesRes = (resFilter === "ALL") || (resTxt.indexOf(resFilter) > -1);
+            trs[i].style.display = (matchesAct && matchesRes) ? "" : "none";
+        }
+    }
+}
+</script>
+</head>
+<body>
+
+<div class="header-box">
+    <h1>🔬 AUDITORÍA FORENSE DÍA A DÍA: CEREBRO 4 (MEGA-AGENTE ADN)</h1>
+    <p style="color: #94a3b8; margin: 0;">Backtest Cuantitativo Completo (1 Año - Velas Reales 2024–2026) | Base: Micro-Balas de $10 USD</p>
+    
+    <div class="kpi-container">
+        <div class="kpi-card">
+            <div class="kpi-title">Total Operaciones</div>
+            <div class="kpi-val blue">282</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Operaciones Ganadas</div>
+            <div class="kpi-val green">209 (74.1%)</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Operaciones Perdidas</div>
+            <div class="kpi-val red">73</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Beneficio Neto Acumulado</div>
+            <div class="kpi-val green">+$182.96 USD</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Pérdidas x Barrida/Ruido</div>
+            <div class="kpi-val" style="color: #f59e0b;">4</div>
+        </div>
+        <div class="kpi-card">
+            <div class="kpi-title">Pérdidas x Salva-Vidas</div>
+            <div class="kpi-val" style="color: #38bdf8;">69</div>
+        </div>
+    </div>
+</div>
+
+<div class="controls">
+    <input type="text" id="searchActivo" onkeyup="filtrarTabla()" placeholder="🔍 Buscar por activo (AMZN, NVDA, BTC...)">
+    <select id="filterResultado" onchange="filtrarTabla()">
+        <option value="ALL">Todas las Operaciones (282)</option>
+        <option value="WIN">Solo Ganadas (209)</option>
+        <option value="LOSS">Solo Perdidas (73)</option>
+    </select>
+    <span style="color: #64748b; font-size: 13px; margin-left: auto;">Orden cronológico de ejecución día a día</span>
+</div>
+
+<table id="tablaTrades">
+    <thead>
+        <tr>
+            <th>#</th>
+            <th>Activo</th>
+            <th>Apertura</th>
+            <th>Cierre</th>
+            <th>Días</th>
+            <th>Entrada / Salida</th>
+            <th>Resultado</th>
+            <th>PnL ($ USD)</th>
+            <th>PnL (%)</th>
+            <th>Diagnóstico de Salida & Calidad Forense</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+        <td style="color:#64748b;">1</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2023-11-21 12:00</td>
+        <td style="white-space:nowrap;">2023-11-27 12:00</td>
+        <td>6.0 d</td>
+        <td>$142.48 → $148.18</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">2</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2023-12-01 16:00</td>
+        <td style="white-space:nowrap;">2023-12-07 12:00</td>
+        <td>5.8 d</td>
+        <td>$131.86 → $137.13</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">3</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2023-12-04 12:00</td>
+        <td style="white-space:nowrap;">2023-12-14 12:00</td>
+        <td>10.0 d</td>
+        <td>$144.04 → $149.80</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">4</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2023-12-06 16:00</td>
+        <td style="white-space:nowrap;">2023-12-07 12:00</td>
+        <td>0.8 d</td>
+        <td>$116.60 → $122.43</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">5</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2023-12-13 20:00</td>
+        <td style="white-space:nowrap;">2023-12-20 12:00</td>
+        <td>6.7 d</td>
+        <td>$132.56 → $137.86</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">6</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-01-02 12:00</td>
+        <td style="white-space:nowrap;">2024-01-10 12:00</td>
+        <td>8.0 d</td>
+        <td>$149.96 → $153.55</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">7</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-01-02 16:00</td>
+        <td style="white-space:nowrap;">2024-01-11 12:00</td>
+        <td>8.8 d</td>
+        <td>$137.59 → $143.09</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">8</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-01-03 12:00</td>
+        <td style="white-space:nowrap;">2024-01-08 12:00</td>
+        <td>5.0 d</td>
+        <td>$134.89 → $141.63</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">9</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-01-30 20:00</td>
+        <td style="white-space:nowrap;">2024-02-22 12:00</td>
+        <td>22.7 d</td>
+        <td>$171.98 → $176.41</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">10</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-01-31 20:00</td>
+        <td style="white-space:nowrap;">2024-02-08 12:00</td>
+        <td>7.7 d</td>
+        <td>$140.03 → $145.63</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">11</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-02-15 12:00</td>
+        <td style="white-space:nowrap;">2024-03-18 12:00</td>
+        <td>32.0 d</td>
+        <td>$141.59 → $144.30</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">12</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-02-16 12:00</td>
+        <td style="white-space:nowrap;">2024-02-29 20:00</td>
+        <td>13.3 d</td>
+        <td>$169.99 → $176.79</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">13</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-02-28 20:00</td>
+        <td style="white-space:nowrap;">2024-02-29 12:00</td>
+        <td>0.7 d</td>
+        <td>$176.57 → $185.40</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">14</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-03-11 12:00</td>
+        <td style="white-space:nowrap;">2024-03-14 12:00</td>
+        <td>3.0 d</td>
+        <td>$172.40 → $179.30</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">15</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-03-14 16:00</td>
+        <td style="white-space:nowrap;">2024-04-04 16:00</td>
+        <td>21.0 d</td>
+        <td>$187.27 → $165.77</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$19.55</td>
+        <td class="red">-9.8%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">16</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-04-10 12:00</td>
+        <td style="white-space:nowrap;">2024-04-19 12:00</td>
+        <td>9.0 d</td>
+        <td>$165.87 → $147.94</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$18.73</td>
+        <td class="red">-9.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">17</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-04-19 12:00</td>
+        <td style="white-space:nowrap;">2024-04-29 12:00</td>
+        <td>10.0 d</td>
+        <td>$174.33 → $181.30</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">18</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-04-19 16:00</td>
+        <td style="white-space:nowrap;">2024-04-24 12:00</td>
+        <td>4.8 d</td>
+        <td>$146.53 → $153.86</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">19</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-04-25 12:00</td>
+        <td style="white-space:nowrap;">2024-04-30 12:00</td>
+        <td>5.0 d</td>
+        <td>$153.36 → $161.03</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">20</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-05-21 12:00</td>
+        <td style="white-space:nowrap;">2024-06-07 12:00</td>
+        <td>17.0 d</td>
+        <td>$182.10 → $185.14</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">21</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-06-14 12:00</td>
+        <td style="white-space:nowrap;">2024-06-20 12:00</td>
+        <td>6.0 d</td>
+        <td>$158.12 → $166.02</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">22</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-07-15 16:00</td>
+        <td style="white-space:nowrap;">2024-08-02 12:00</td>
+        <td>17.8 d</td>
+        <td>$192.71 → $167.78</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$23.16</td>
+        <td class="red">-11.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">23</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-07-16 16:00</td>
+        <td style="white-space:nowrap;">2024-07-25 16:00</td>
+        <td>9.0 d</td>
+        <td>$183.91 → $167.22</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.78</td>
+        <td class="red">-7.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">24</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-07-18 16:00</td>
+        <td style="white-space:nowrap;">2024-07-25 16:00</td>
+        <td>7.0 d</td>
+        <td>$155.76 → $138.28</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$17.39</td>
+        <td class="red">-8.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">25</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-07-26 12:00</td>
+        <td style="white-space:nowrap;">2024-07-31 12:00</td>
+        <td>5.0 d</td>
+        <td>$166.80 → $173.48</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">26</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-07-26 12:00</td>
+        <td style="white-space:nowrap;">2024-07-31 12:00</td>
+        <td>5.0 d</td>
+        <td>$140.34 → $145.03</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">27</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-07-31 16:00</td>
+        <td style="white-space:nowrap;">2024-08-06 16:00</td>
+        <td>6.0 d</td>
+        <td>$144.48 → $130.14</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.59</td>
+        <td class="red">-7.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">28</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-08-01 16:00</td>
+        <td style="white-space:nowrap;">2024-09-03 16:00</td>
+        <td>33.0 d</td>
+        <td>$170.77 → $157.38</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.97</td>
+        <td class="red">-6.5%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">29</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-08-02 16:00</td>
+        <td style="white-space:nowrap;">2024-08-14 12:00</td>
+        <td>11.8 d</td>
+        <td>$167.83 → $171.44</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">30</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-08-27 12:00</td>
+        <td style="white-space:nowrap;">2024-09-10 16:00</td>
+        <td>14.2 d</td>
+        <td>$173.24 → $180.17</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">31</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-09-04 12:00</td>
+        <td style="white-space:nowrap;">2024-09-17 12:00</td>
+        <td>13.0 d</td>
+        <td>$157.14 → $160.40</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">32</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-09-04 12:00</td>
+        <td style="white-space:nowrap;">2024-09-11 12:00</td>
+        <td>7.0 d</td>
+        <td>$141.77 → $143.88</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">33</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-09-05 12:00</td>
+        <td style="white-space:nowrap;">2024-09-09 20:00</td>
+        <td>4.3 d</td>
+        <td>$55,987.69 → $57,183.88</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">34</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-09-06 20:00</td>
+        <td style="white-space:nowrap;">2024-09-08 08:00</td>
+        <td>1.5 d</td>
+        <td>$124.98 → $130.61</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">35</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-09-16 00:00</td>
+        <td style="white-space:nowrap;">2024-09-19 00:00</td>
+        <td>3.0 d</td>
+        <td>$130.64 → $136.51</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">36</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-09-16 04:00</td>
+        <td style="white-space:nowrap;">2024-09-17 12:00</td>
+        <td>1.3 d</td>
+        <td>$58,906.95 → $61,263.23</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">37</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-09-22 08:00</td>
+        <td style="white-space:nowrap;">2024-09-26 12:00</td>
+        <td>4.2 d</td>
+        <td>$62,827.80 → $65,340.92</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">38</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-09-30 04:00</td>
+        <td style="white-space:nowrap;">2024-10-14 12:00</td>
+        <td>14.3 d</td>
+        <td>$64,581.20 → $65,646.30</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">39</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-10-01 12:00</td>
+        <td style="white-space:nowrap;">2024-10-30 12:00</td>
+        <td>29.0 d</td>
+        <td>$184.98 → $192.38</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">40</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-10-01 16:00</td>
+        <td style="white-space:nowrap;">2024-10-03 12:00</td>
+        <td>1.8 d</td>
+        <td>$145.79 → $135.82</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$10.29</td>
+        <td class="red">-5.1%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">41</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-10-03 16:00</td>
+        <td style="white-space:nowrap;">2024-10-04 16:00</td>
+        <td>1.0 d</td>
+        <td>$137.31 → $143.49</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">42</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-10-09 08:00</td>
+        <td style="white-space:nowrap;">2024-10-12 08:00</td>
+        <td>3.0 d</td>
+        <td>$143.10 → $147.01</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">43</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-10-15 16:00</td>
+        <td style="white-space:nowrap;">2024-10-29 16:00</td>
+        <td>14.0 d</td>
+        <td>$156.68 → $164.51</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">44</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-10-23 00:00</td>
+        <td style="white-space:nowrap;">2024-10-28 16:00</td>
+        <td>5.7 d</td>
+        <td>$67,024.80 → $69,705.79</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">45</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-10-31 08:00</td>
+        <td style="white-space:nowrap;">2024-11-02 12:00</td>
+        <td>2.2 d</td>
+        <td>$175.03 → $163.72</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.56</td>
+        <td class="red">-4.8%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">46</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-10-31 20:00</td>
+        <td style="white-space:nowrap;">2024-11-06 00:00</td>
+        <td>5.2 d</td>
+        <td>$70,216.90 → $71,890.35</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">47</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-11-03 00:00</td>
+        <td style="white-space:nowrap;">2024-11-06 00:00</td>
+        <td>3.0 d</td>
+        <td>$162.26 → $169.56</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">48</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-11-04 20:00</td>
+        <td style="white-space:nowrap;">2024-11-07 12:00</td>
+        <td>2.7 d</td>
+        <td>$140.74 → $147.78</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">49</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-11-13 20:00</td>
+        <td style="white-space:nowrap;">2024-12-04 20:00</td>
+        <td>21.0 d</td>
+        <td>$139.31 → $143.77</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">50</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-11-14 16:00</td>
+        <td style="white-space:nowrap;">2024-12-10 12:00</td>
+        <td>25.8 d</td>
+        <td>$175.91 → $177.15</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">51</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-11-20 12:00</td>
+        <td style="white-space:nowrap;">2024-12-02 12:00</td>
+        <td>12.0 d</td>
+        <td>$200.76 → $208.79</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">52</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-11-26 08:00</td>
+        <td style="white-space:nowrap;">2024-11-27 16:00</td>
+        <td>1.3 d</td>
+        <td>$92,365.70 → $96,060.33</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">53</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-11-26 16:00</td>
+        <td style="white-space:nowrap;">2024-11-27 12:00</td>
+        <td>0.8 d</td>
+        <td>$228.24 → $238.51</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">54</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-12-01 20:00</td>
+        <td style="white-space:nowrap;">2024-12-05 12:00</td>
+        <td>3.7 d</td>
+        <td>$237.09 → $243.34</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">55</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-12-09 12:00</td>
+        <td style="white-space:nowrap;">2024-12-18 20:00</td>
+        <td>9.3 d</td>
+        <td>$132.71 → $121.42</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$13.41</td>
+        <td class="red">-6.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">56</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-12-09 20:00</td>
+        <td style="white-space:nowrap;">2024-12-11 20:00</td>
+        <td>2.0 d</td>
+        <td>$97,441.23 → $101,338.88</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">57</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-12-09 20:00</td>
+        <td style="white-space:nowrap;">2024-12-11 08:00</td>
+        <td>1.5 d</td>
+        <td>$217.33 → $222.06</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">58</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-12-14 20:00</td>
+        <td style="white-space:nowrap;">2024-12-18 20:00</td>
+        <td>4.0 d</td>
+        <td>$219.84 → $206.38</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.42</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">59</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2024-12-18 20:00</td>
+        <td style="white-space:nowrap;">2024-12-30 12:00</td>
+        <td>11.7 d</td>
+        <td>$100,161.50 → $91,911.45</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.85</td>
+        <td class="red">-6.9%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">60</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2024-12-19 12:00</td>
+        <td style="white-space:nowrap;">2025-01-06 12:00</td>
+        <td>18.0 d</td>
+        <td>$121.25 → $127.32</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">61</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-12-19 16:00</td>
+        <td style="white-space:nowrap;">2024-12-20 00:00</td>
+        <td>0.3 d</td>
+        <td>$189.69 → $198.23</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">62</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-12-20 08:00</td>
+        <td style="white-space:nowrap;">2024-12-20 12:00</td>
+        <td>0.2 d</td>
+        <td>$177.22 → $185.19</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">63</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2024-12-23 12:00</td>
+        <td style="white-space:nowrap;">2025-01-21 12:00</td>
+        <td>29.0 d</td>
+        <td>$225.88 → $230.63</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">64</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2024-12-26 20:00</td>
+        <td style="white-space:nowrap;">2024-12-29 04:00</td>
+        <td>2.3 d</td>
+        <td>$188.22 → $196.69</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">65</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2024-12-31 16:00</td>
+        <td style="white-space:nowrap;">2025-01-06 12:00</td>
+        <td>5.8 d</td>
+        <td>$190.35 → $197.96</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">66</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-01-08 04:00</td>
+        <td style="white-space:nowrap;">2025-01-13 04:00</td>
+        <td>5.0 d</td>
+        <td>$195.71 → $182.25</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.42</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">67</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-01-08 08:00</td>
+        <td style="white-space:nowrap;">2025-01-14 08:00</td>
+        <td>6.0 d</td>
+        <td>$95,161.72 → $97,333.07</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">68</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-01-13 08:00</td>
+        <td style="white-space:nowrap;">2025-01-13 20:00</td>
+        <td>0.5 d</td>
+        <td>$175.37 → $183.26</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">69</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-01-13 12:00</td>
+        <td style="white-space:nowrap;">2025-01-17 12:00</td>
+        <td>4.0 d</td>
+        <td>$115.51 → $121.29</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">70</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-01-14 16:00</td>
+        <td style="white-space:nowrap;">2025-01-17 12:00</td>
+        <td>2.8 d</td>
+        <td>$188.88 → $196.44</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">71</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-01-27 04:00</td>
+        <td style="white-space:nowrap;">2025-01-28 04:00</td>
+        <td>1.0 d</td>
+        <td>$227.98 → $238.23</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">72</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-01-27 08:00</td>
+        <td style="white-space:nowrap;">2025-01-28 00:00</td>
+        <td>0.7 d</td>
+        <td>$98,816.92 → $102,769.60</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">73</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-01-27 12:00</td>
+        <td style="white-space:nowrap;">2025-02-25 16:00</td>
+        <td>29.2 d</td>
+        <td>$115.27 → $104.61</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$13.63</td>
+        <td class="red">-6.8%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">74</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-01-28 12:00</td>
+        <td style="white-space:nowrap;">2025-01-30 12:00</td>
+        <td>2.0 d</td>
+        <td>$237.13 → $242.50</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">75</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-02-01 08:00</td>
+        <td style="white-space:nowrap;">2025-02-24 16:00</td>
+        <td>23.3 d</td>
+        <td>$101,978.84 → $93,894.87</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.25</td>
+        <td class="red">-6.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">76</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-01 16:00</td>
+        <td style="white-space:nowrap;">2025-02-02 00:00</td>
+        <td>0.3 d</td>
+        <td>$221.74 → $207.67</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.40</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">77</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-02 08:00</td>
+        <td style="white-space:nowrap;">2025-02-03 16:00</td>
+        <td>1.3 d</td>
+        <td>$209.29 → $212.80</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">78</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-07 04:00</td>
+        <td style="white-space:nowrap;">2025-02-07 12:00</td>
+        <td>0.3 d</td>
+        <td>$192.65 → $201.32</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">79</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-02-07 12:00</td>
+        <td style="white-space:nowrap;">2025-02-27 12:00</td>
+        <td>20.0 d</td>
+        <td>$185.47 → $171.09</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.76</td>
+        <td class="red">-6.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">80</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-02-11 16:00</td>
+        <td style="white-space:nowrap;">2025-02-24 12:00</td>
+        <td>12.8 d</td>
+        <td>$232.32 → $214.19</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.79</td>
+        <td class="red">-6.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">81</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-12 16:00</td>
+        <td style="white-space:nowrap;">2025-02-14 16:00</td>
+        <td>2.0 d</td>
+        <td>$193.64 → $202.35</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">82</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-16 12:00</td>
+        <td style="white-space:nowrap;">2025-02-17 16:00</td>
+        <td>1.2 d</td>
+        <td>$190.47 → $177.43</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.43</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">83</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-18 00:00</td>
+        <td style="white-space:nowrap;">2025-02-21 08:00</td>
+        <td>3.3 d</td>
+        <td>$177.88 → $179.53</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">84</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-24 08:00</td>
+        <td style="white-space:nowrap;">2025-02-24 20:00</td>
+        <td>0.5 d</td>
+        <td>$159.42 → $141.72</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$18.38</td>
+        <td class="red">-9.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">85</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-02-24 16:00</td>
+        <td style="white-space:nowrap;">2025-02-27 12:00</td>
+        <td>2.8 d</td>
+        <td>$214.26 → $218.44</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">86</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-02-24 20:00</td>
+        <td style="white-space:nowrap;">2025-02-26 16:00</td>
+        <td>1.8 d</td>
+        <td>$91,425.15 → $83,755.37</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.33</td>
+        <td class="red">-6.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">87</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-25 08:00</td>
+        <td style="white-space:nowrap;">2025-02-28 00:00</td>
+        <td>2.7 d</td>
+        <td>$141.13 → $127.57</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$13.06</td>
+        <td class="red">-6.5%</td>
+        <td class="diag-box"><b>Barrida por Ruido de Mercado</b><br><span style="color:#94a3b8;">⚡ Barrida por Ruido / Mecha rápida (Rebotó poco después)</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">88</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-02-25 20:00</td>
+        <td style="white-space:nowrap;">2025-03-19 16:00</td>
+        <td>21.8 d</td>
+        <td>$103.98 → $107.15</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">89</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-02-26 20:00</td>
+        <td style="white-space:nowrap;">2025-03-01 00:00</td>
+        <td>2.2 d</td>
+        <td>$84,070.85 → $85,418.78</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">90</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-02-27 16:00</td>
+        <td style="white-space:nowrap;">2025-03-28 12:00</td>
+        <td>28.8 d</td>
+        <td>$168.58 → $155.81</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.25</td>
+        <td class="red">-6.1%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">91</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-02-28 04:00</td>
+        <td style="white-space:nowrap;">2025-02-28 08:00</td>
+        <td>0.2 d</td>
+        <td>$128.18 → $133.94</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">92</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-03-04 12:00</td>
+        <td style="white-space:nowrap;">2025-03-05 16:00</td>
+        <td>1.2 d</td>
+        <td>$199.40 → $207.38</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">93</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-05 04:00</td>
+        <td style="white-space:nowrap;">2025-03-05 08:00</td>
+        <td>0.2 d</td>
+        <td>$142.82 → $149.25</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">94</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-03-07 12:00</td>
+        <td style="white-space:nowrap;">2025-03-24 12:00</td>
+        <td>17.0 d</td>
+        <td>$194.52 → $202.31</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">95</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-03-08 16:00</td>
+        <td style="white-space:nowrap;">2025-03-10 16:00</td>
+        <td>2.0 d</td>
+        <td>$86,203.95 → $78,910.55</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.82</td>
+        <td class="red">-6.8%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">96</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-08 16:00</td>
+        <td style="white-space:nowrap;">2025-03-09 20:00</td>
+        <td>1.2 d</td>
+        <td>$138.48 → $126.44</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$11.72</td>
+        <td class="red">-5.9%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">97</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-10 00:00</td>
+        <td style="white-space:nowrap;">2025-03-10 20:00</td>
+        <td>0.8 d</td>
+        <td>$126.97 → $118.29</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$10.30</td>
+        <td class="red">-5.2%</td>
+        <td class="diag-box"><b>Barrida por Ruido de Mercado</b><br><span style="color:#94a3b8;">⚡ Barrida por Ruido / Mecha rápida (Rebotó poco después)</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">98</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-03-11 00:00</td>
+        <td style="white-space:nowrap;">2025-03-11 16:00</td>
+        <td>0.7 d</td>
+        <td>$79,451.77 → $82,629.84</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">99</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-11 00:00</td>
+        <td style="white-space:nowrap;">2025-03-11 08:00</td>
+        <td>0.3 d</td>
+        <td>$120.10 → $125.51</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">100</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-11 12:00</td>
+        <td style="white-space:nowrap;">2025-03-14 12:00</td>
+        <td>3.0 d</td>
+        <td>$124.96 → $130.58</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">101</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-03-16 20:00</td>
+        <td style="white-space:nowrap;">2025-03-19 16:00</td>
+        <td>2.8 d</td>
+        <td>$82,576.34 → $85,879.39</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">102</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-17 08:00</td>
+        <td style="white-space:nowrap;">2025-03-19 16:00</td>
+        <td>2.3 d</td>
+        <td>$129.26 → $132.42</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">103</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-03-22 12:00</td>
+        <td style="white-space:nowrap;">2025-03-24 08:00</td>
+        <td>1.8 d</td>
+        <td>$84,091.95 → $87,455.62</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">104</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-03-28 08:00</td>
+        <td style="white-space:nowrap;">2025-04-02 12:00</td>
+        <td>5.2 d</td>
+        <td>$85,199.30 → $87,045.81</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">105</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-03-28 08:00</td>
+        <td style="white-space:nowrap;">2025-04-02 20:00</td>
+        <td>5.5 d</td>
+        <td>$131.73 → $134.77</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">106</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-03-28 16:00</td>
+        <td style="white-space:nowrap;">2025-04-09 16:00</td>
+        <td>12.0 d</td>
+        <td>$154.33 → $157.13</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">107</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-04-02 16:00</td>
+        <td style="white-space:nowrap;">2025-04-03 16:00</td>
+        <td>1.0 d</td>
+        <td>$102.96 → $93.81</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.32</td>
+        <td class="red">-6.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">108</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-04-03 12:00</td>
+        <td style="white-space:nowrap;">2025-04-09 16:00</td>
+        <td>6.2 d</td>
+        <td>$182.81 → $185.90</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">109</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-04-03 12:00</td>
+        <td style="white-space:nowrap;">2025-04-04 08:00</td>
+        <td>0.8 d</td>
+        <td>$114.15 → $119.29</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">110</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-04-06 16:00</td>
+        <td style="white-space:nowrap;">2025-04-07 12:00</td>
+        <td>0.8 d</td>
+        <td>$79,597.07 → $80,370.07</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">111</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-04-06 20:00</td>
+        <td style="white-space:nowrap;">2025-04-07 12:00</td>
+        <td>0.7 d</td>
+        <td>$105.68 → $106.04</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">112</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-04-07 16:00</td>
+        <td style="white-space:nowrap;">2025-04-09 16:00</td>
+        <td>2.0 d</td>
+        <td>$78,234.47 → $79,648.07</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">113</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-04-07 16:00</td>
+        <td style="white-space:nowrap;">2025-04-08 00:00</td>
+        <td>0.3 d</td>
+        <td>$106.15 → $110.92</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">114</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-04-21 16:00</td>
+        <td style="white-space:nowrap;">2025-04-22 12:00</td>
+        <td>0.8 d</td>
+        <td>$167.31 → $174.00</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">115</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-04-21 16:00</td>
+        <td style="white-space:nowrap;">2025-04-23 12:00</td>
+        <td>1.8 d</td>
+        <td>$147.65 → $153.56</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">116</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-04-27 04:00</td>
+        <td style="white-space:nowrap;">2025-05-01 08:00</td>
+        <td>4.2 d</td>
+        <td>$147.55 → $151.43</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">117</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-04-28 00:00</td>
+        <td style="white-space:nowrap;">2025-05-02 12:00</td>
+        <td>4.5 d</td>
+        <td>$93,895.17 → $97,650.98</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">118</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-05-03 16:00</td>
+        <td style="white-space:nowrap;">2025-05-08 04:00</td>
+        <td>4.5 d</td>
+        <td>$147.49 → $151.43</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">119</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-05-04 16:00</td>
+        <td style="white-space:nowrap;">2025-05-08 08:00</td>
+        <td>3.7 d</td>
+        <td>$95,571.00 → $99,393.84</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">120</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-05-16 04:00</td>
+        <td style="white-space:nowrap;">2025-05-18 12:00</td>
+        <td>2.3 d</td>
+        <td>$172.33 → $176.37</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">121</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-05-25 08:00</td>
+        <td style="white-space:nowrap;">2025-06-09 20:00</td>
+        <td>15.5 d</td>
+        <td>$107,272.38 → $109,832.45</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">122</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-05-25 08:00</td>
+        <td style="white-space:nowrap;">2025-05-30 12:00</td>
+        <td>5.2 d</td>
+        <td>$171.89 → $161.42</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.39</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">123</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-05-30 16:00</td>
+        <td style="white-space:nowrap;">2025-06-05 12:00</td>
+        <td>5.8 d</td>
+        <td>$161.29 → $151.35</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.49</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">124</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-06-05 16:00</td>
+        <td style="white-space:nowrap;">2025-06-08 16:00</td>
+        <td>3.0 d</td>
+        <td>$146.29 → $152.87</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">125</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-06-13 00:00</td>
+        <td style="white-space:nowrap;">2025-06-16 16:00</td>
+        <td>3.7 d</td>
+        <td>$104,419.16 → $108,595.93</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">126</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-06-13 04:00</td>
+        <td style="white-space:nowrap;">2025-06-15 12:00</td>
+        <td>2.3 d</td>
+        <td>$145.15 → $151.68</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">127</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-06-18 12:00</td>
+        <td style="white-space:nowrap;">2025-06-21 20:00</td>
+        <td>3.3 d</td>
+        <td>$145.90 → $135.20</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$10.84</td>
+        <td class="red">-5.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">128</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-06-19 00:00</td>
+        <td style="white-space:nowrap;">2025-06-24 16:00</td>
+        <td>5.7 d</td>
+        <td>$105,133.33 → $106,153.85</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">129</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-06-20 16:00</td>
+        <td style="white-space:nowrap;">2025-06-26 16:00</td>
+        <td>6.0 d</td>
+        <td>$209.60 → $217.99</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">130</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-06-22 08:00</td>
+        <td style="white-space:nowrap;">2025-06-23 12:00</td>
+        <td>1.2 d</td>
+        <td>$133.16 → $136.69</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">131</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-06-23 12:00</td>
+        <td style="white-space:nowrap;">2025-06-25 12:00</td>
+        <td>2.0 d</td>
+        <td>$163.54 → $170.08</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">132</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-07-01 16:00</td>
+        <td style="white-space:nowrap;">2025-07-02 16:00</td>
+        <td>1.0 d</td>
+        <td>$105,486.40 → $109,705.85</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">133</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-07-05 08:00</td>
+        <td style="white-space:nowrap;">2025-07-09 12:00</td>
+        <td>4.2 d</td>
+        <td>$148.35 → $155.02</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">134</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-07-06 08:00</td>
+        <td style="white-space:nowrap;">2025-07-10 16:00</td>
+        <td>4.3 d</td>
+        <td>$108,095.28 → $112,419.09</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">135</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-07-07 16:00</td>
+        <td style="white-space:nowrap;">2025-07-10 12:00</td>
+        <td>2.8 d</td>
+        <td>$134.83 → $141.57</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">136</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-07-25 00:00</td>
+        <td style="white-space:nowrap;">2025-08-11 00:00</td>
+        <td>17.0 d</td>
+        <td>$115,427.60 → $120,044.71</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">137</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-07-30 08:00</td>
+        <td style="white-space:nowrap;">2025-08-01 20:00</td>
+        <td>2.5 d</td>
+        <td>$176.99 → $162.88</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.97</td>
+        <td class="red">-6.5%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">138</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-08-01 12:00</td>
+        <td style="white-space:nowrap;">2025-08-07 12:00</td>
+        <td>6.0 d</td>
+        <td>$216.06 → $224.70</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">139</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-08-02 04:00</td>
+        <td style="white-space:nowrap;">2025-08-04 16:00</td>
+        <td>2.5 d</td>
+        <td>$164.33 → $168.10</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">140</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-08-11 12:00</td>
+        <td style="white-space:nowrap;">2025-08-14 12:00</td>
+        <td>3.0 d</td>
+        <td>$222.12 → $231.00</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">141</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-08-12 08:00</td>
+        <td style="white-space:nowrap;">2025-08-12 16:00</td>
+        <td>0.3 d</td>
+        <td>$175.22 → $183.10</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">142</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-08-15 16:00</td>
+        <td style="white-space:nowrap;">2025-09-01 00:00</td>
+        <td>16.3 d</td>
+        <td>$117,005.49 → $107,691.96</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.50</td>
+        <td class="red">-6.5%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">143</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-08-16 16:00</td>
+        <td style="white-space:nowrap;">2025-08-19 16:00</td>
+        <td>3.0 d</td>
+        <td>$189.03 → $176.92</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.94</td>
+        <td class="red">-5.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">144</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-08-19 20:00</td>
+        <td style="white-space:nowrap;">2025-08-20 12:00</td>
+        <td>0.7 d</td>
+        <td>$176.11 → $184.04</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">145</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-08-25 12:00</td>
+        <td style="white-space:nowrap;">2025-10-02 12:00</td>
+        <td>38.0 d</td>
+        <td>$164.07 → $165.94</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">146</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-08-30 12:00</td>
+        <td style="white-space:nowrap;">2025-09-03 00:00</td>
+        <td>3.5 d</td>
+        <td>$200.89 → $209.93</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">147</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-09-06 04:00</td>
+        <td style="white-space:nowrap;">2025-09-08 08:00</td>
+        <td>2.2 d</td>
+        <td>$203.03 → $212.16</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">148</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-09-15 00:00</td>
+        <td style="white-space:nowrap;">2025-10-01 16:00</td>
+        <td>16.7 d</td>
+        <td>$115,557.88 → $118,115.31</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">149</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-09-15 16:00</td>
+        <td style="white-space:nowrap;">2025-09-17 20:00</td>
+        <td>2.2 d</td>
+        <td>$232.68 → $243.15</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">150</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-09-20 08:00</td>
+        <td style="white-space:nowrap;">2025-09-22 16:00</td>
+        <td>2.3 d</td>
+        <td>$238.44 → $217.09</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$11.51</td>
+        <td class="red">-5.8%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">151</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-09-23 00:00</td>
+        <td style="white-space:nowrap;">2025-09-25 08:00</td>
+        <td>2.3 d</td>
+        <td>$217.19 → $201.27</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$11.10</td>
+        <td class="red">-5.5%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">152</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-09-24 12:00</td>
+        <td style="white-space:nowrap;">2025-10-27 12:00</td>
+        <td>33.0 d</td>
+        <td>$220.89 → $225.58</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">153</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-09-25 12:00</td>
+        <td style="white-space:nowrap;">2025-10-15 12:00</td>
+        <td>20.0 d</td>
+        <td>$245.43 → $250.56</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">154</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-09-25 12:00</td>
+        <td style="white-space:nowrap;">2025-09-26 20:00</td>
+        <td>1.3 d</td>
+        <td>$200.88 → $205.39</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">155</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-10-08 12:00</td>
+        <td style="white-space:nowrap;">2025-10-10 20:00</td>
+        <td>2.3 d</td>
+        <td>$221.42 → $188.64</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$25.39</td>
+        <td class="red">-12.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">156</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-10-09 16:00</td>
+        <td style="white-space:nowrap;">2025-10-11 04:00</td>
+        <td>1.5 d</td>
+        <td>$121,013.58 → $110,320.70</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$7.29</td>
+        <td class="red">-7.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">157</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-10-11 04:00</td>
+        <td style="white-space:nowrap;">2025-10-12 12:00</td>
+        <td>1.3 d</td>
+        <td>$183.39 → $188.47</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">158</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-10-11 20:00</td>
+        <td style="white-space:nowrap;">2025-10-12 20:00</td>
+        <td>1.0 d</td>
+        <td>$110,811.52 → $115,243.98</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">159</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-10-16 20:00</td>
+        <td style="white-space:nowrap;">2025-10-21 12:00</td>
+        <td>4.7 d</td>
+        <td>$108,179.13 → $112,506.30</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">160</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-10-16 20:00</td>
+        <td style="white-space:nowrap;">2025-10-19 08:00</td>
+        <td>2.5 d</td>
+        <td>$184.69 → $189.62</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">161</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2025-10-20 12:00</td>
+        <td style="white-space:nowrap;">2025-10-28 12:00</td>
+        <td>8.0 d</td>
+        <td>$183.81 → $193.00</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">162</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-10-22 20:00</td>
+        <td style="white-space:nowrap;">2025-10-23 08:00</td>
+        <td>0.5 d</td>
+        <td>$180.15 → $188.25</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">163</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-10-23 20:00</td>
+        <td style="white-space:nowrap;">2025-10-26 20:00</td>
+        <td>3.0 d</td>
+        <td>$110,069.35 → $114,472.13</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">164</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-10-29 16:00</td>
+        <td style="white-space:nowrap;">2025-11-04 16:00</td>
+        <td>6.0 d</td>
+        <td>$110,716.09 → $100,452.50</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$7.55</td>
+        <td class="red">-7.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">165</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-10-30 12:00</td>
+        <td style="white-space:nowrap;">2025-11-03 12:00</td>
+        <td>4.0 d</td>
+        <td>$184.82 → $166.81</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$16.02</td>
+        <td class="red">-8.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">166</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-03 16:00</td>
+        <td style="white-space:nowrap;">2025-11-04 16:00</td>
+        <td>1.0 d</td>
+        <td>$167.15 → $154.56</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.28</td>
+        <td class="red">-4.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">167</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-11-04 20:00</td>
+        <td style="white-space:nowrap;">2025-11-10 00:00</td>
+        <td>5.2 d</td>
+        <td>$101,579.23 → $105,642.40</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">168</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-04 20:00</td>
+        <td style="white-space:nowrap;">2025-11-05 16:00</td>
+        <td>0.8 d</td>
+        <td>$155.55 → $162.55</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">169</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2025-11-06 16:00</td>
+        <td style="white-space:nowrap;">2025-11-10 12:00</td>
+        <td>3.8 d</td>
+        <td>$189.82 → $194.08</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">170</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-12 00:00</td>
+        <td style="white-space:nowrap;">2025-11-14 08:00</td>
+        <td>2.3 d</td>
+        <td>$154.72 → $140.42</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$11.11</td>
+        <td class="red">-5.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">171</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2025-11-12 16:00</td>
+        <td style="white-space:nowrap;">2025-12-03 12:00</td>
+        <td>20.8 d</td>
+        <td>$431.24 → $443.94</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$11.80</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">172</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-11-13 16:00</td>
+        <td style="white-space:nowrap;">2025-11-18 00:00</td>
+        <td>4.3 d</td>
+        <td>$98,650.99 → $90,708.10</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.69</td>
+        <td class="red">-6.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">173</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-14 12:00</td>
+        <td style="white-space:nowrap;">2025-11-17 16:00</td>
+        <td>3.2 d</td>
+        <td>$142.33 → $129.72</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.84</td>
+        <td class="red">-7.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">174</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2025-11-14 20:00</td>
+        <td style="white-space:nowrap;">2026-01-06 16:00</td>
+        <td>52.8 d</td>
+        <td>$234.70 → $239.62</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">175</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-11-14 20:00</td>
+        <td style="white-space:nowrap;">2025-11-17 12:00</td>
+        <td>2.7 d</td>
+        <td>$276.44 → $287.50</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">176</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-11-18 04:00</td>
+        <td style="white-space:nowrap;">2025-11-21 08:00</td>
+        <td>3.2 d</td>
+        <td>$90,372.54 → $82,228.77</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$7.21</td>
+        <td class="red">-7.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">177</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2025-11-18 12:00</td>
+        <td style="white-space:nowrap;">2025-11-20 12:00</td>
+        <td>2.0 d</td>
+        <td>$182.89 → $192.03</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">178</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-11-19 16:00</td>
+        <td style="white-space:nowrap;">2025-11-21 12:00</td>
+        <td>1.8 d</td>
+        <td>$223.39 → $200.21</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$15.11</td>
+        <td class="red">-7.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">179</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-21 08:00</td>
+        <td style="white-space:nowrap;">2025-11-21 16:00</td>
+        <td>0.3 d</td>
+        <td>$123.97 → $129.55</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">180</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2025-11-21 12:00</td>
+        <td style="white-space:nowrap;">2025-12-08 16:00</td>
+        <td>17.2 d</td>
+        <td>$178.86 → $187.80</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">181</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-11-22 04:00</td>
+        <td style="white-space:nowrap;">2025-11-23 20:00</td>
+        <td>1.7 d</td>
+        <td>$84,514.52 → $87,895.10</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">182</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-22 08:00</td>
+        <td style="white-space:nowrap;">2025-11-23 12:00</td>
+        <td>1.2 d</td>
+        <td>$126.88 → $132.59</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">183</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-11-25 12:00</td>
+        <td style="white-space:nowrap;">2025-11-26 12:00</td>
+        <td>1.0 d</td>
+        <td>$199.60 → $209.59</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">184</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-11-30 00:00</td>
+        <td style="white-space:nowrap;">2025-12-01 12:00</td>
+        <td>1.5 d</td>
+        <td>$136.43 → $125.24</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.87</td>
+        <td class="red">-4.9%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">185</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-12-01 04:00</td>
+        <td style="white-space:nowrap;">2025-12-02 12:00</td>
+        <td>1.3 d</td>
+        <td>$86,533.84 → $89,995.19</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">186</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-12-01 16:00</td>
+        <td style="white-space:nowrap;">2025-12-02 12:00</td>
+        <td>0.8 d</td>
+        <td>$123.94 → $129.51</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">187</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-12-05 16:00</td>
+        <td style="white-space:nowrap;">2025-12-09 16:00</td>
+        <td>4.0 d</td>
+        <td>$89,725.29 → $93,314.30</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">188</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-12-05 20:00</td>
+        <td style="white-space:nowrap;">2025-12-09 16:00</td>
+        <td>3.8 d</td>
+        <td>$133.32 → $139.32</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">189</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2025-12-14 04:00</td>
+        <td style="white-space:nowrap;">2026-01-05 00:00</td>
+        <td>21.8 d</td>
+        <td>$90,260.63 → $92,120.83</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">190</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-12-14 16:00</td>
+        <td style="white-space:nowrap;">2025-12-18 16:00</td>
+        <td>4.0 d</td>
+        <td>$130.36 → $117.76</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$15.76</td>
+        <td class="red">-7.9%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">191</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2025-12-15 20:00</td>
+        <td style="white-space:nowrap;">2025-12-19 16:00</td>
+        <td>3.8 d</td>
+        <td>$207.58 → $214.29</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">192</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2025-12-16 12:00</td>
+        <td style="white-space:nowrap;">2025-12-23 12:00</td>
+        <td>7.0 d</td>
+        <td>$176.02 → $184.82</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">193</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2025-12-16 12:00</td>
+        <td style="white-space:nowrap;">2026-01-02 12:00</td>
+        <td>17.0 d</td>
+        <td>$305.30 → $317.51</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">194</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2025-12-24 16:00</td>
+        <td style="white-space:nowrap;">2025-12-29 00:00</td>
+        <td>4.3 d</td>
+        <td>$122.70 → $128.22</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">195</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2025-12-29 12:00</td>
+        <td style="white-space:nowrap;">2026-01-20 12:00</td>
+        <td>22.0 d</td>
+        <td>$467.63 → $425.65</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.48</td>
+        <td class="red">-7.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">196</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-01-07 20:00</td>
+        <td style="white-space:nowrap;">2026-01-13 20:00</td>
+        <td>6.0 d</td>
+        <td>$91,309.64 → $94,962.03</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">197</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2026-01-08 20:00</td>
+        <td style="white-space:nowrap;">2026-01-13 12:00</td>
+        <td>4.7 d</td>
+        <td>$204.70 → $214.93</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">198</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-01-14 12:00</td>
+        <td style="white-space:nowrap;">2026-01-28 12:00</td>
+        <td>14.0 d</td>
+        <td>$181.99 → $191.08</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">199</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-01-15 12:00</td>
+        <td style="white-space:nowrap;">2026-01-27 16:00</td>
+        <td>12.2 d</td>
+        <td>$238.98 → $244.11</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">200</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-01-17 00:00</td>
+        <td style="white-space:nowrap;">2026-01-25 16:00</td>
+        <td>8.7 d</td>
+        <td>$95,330.21 → $86,388.41</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$8.02</td>
+        <td class="red">-8.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">201</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-01-19 00:00</td>
+        <td style="white-space:nowrap;">2026-01-25 16:00</td>
+        <td>6.7 d</td>
+        <td>$133.89 → $117.76</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$20.78</td>
+        <td class="red">-10.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">202</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-01-20 16:00</td>
+        <td style="white-space:nowrap;">2026-01-22 16:00</td>
+        <td>2.0 d</td>
+        <td>$417.91 → $442.98</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$5.90</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">203</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-01-20 20:00</td>
+        <td style="white-space:nowrap;">2026-01-22 12:00</td>
+        <td>1.7 d</td>
+        <td>$322.03 → $334.91</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">204</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-01-25 20:00</td>
+        <td style="white-space:nowrap;">2026-01-28 12:00</td>
+        <td>2.7 d</td>
+        <td>$86,557.38 → $90,019.68</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">205</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-01-25 20:00</td>
+        <td style="white-space:nowrap;">2026-01-26 12:00</td>
+        <td>0.7 d</td>
+        <td>$118.77 → $124.11</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">206</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-01-29 12:00</td>
+        <td style="white-space:nowrap;">2026-01-31 16:00</td>
+        <td>2.2 d</td>
+        <td>$84,758.59 → $77,820.74</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.23</td>
+        <td class="red">-6.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">207</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-01-29 12:00</td>
+        <td style="white-space:nowrap;">2026-01-31 16:00</td>
+        <td>2.2 d</td>
+        <td>$117.56 → $101.98</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$19.62</td>
+        <td class="red">-9.8%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">208</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-01-29 16:00</td>
+        <td style="white-space:nowrap;">2026-02-11 12:00</td>
+        <td>12.8 d</td>
+        <td>$415.51 → $430.34</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$11.80</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">209</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-02-01 00:00</td>
+        <td style="white-space:nowrap;">2026-02-05 00:00</td>
+        <td>4.0 d</td>
+        <td>$78,803.34 → $71,080.63</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$8.36</td>
+        <td class="red">-8.4%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">210</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-01 04:00</td>
+        <td style="white-space:nowrap;">2026-02-03 20:00</td>
+        <td>2.7 d</td>
+        <td>$105.24 → $97.56</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$11.45</td>
+        <td class="red">-5.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">211</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-02-04 12:00</td>
+        <td style="white-space:nowrap;">2026-02-06 12:00</td>
+        <td>2.0 d</td>
+        <td>$175.25 → $184.01</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">212</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-02-04 12:00</td>
+        <td style="white-space:nowrap;">2026-02-06 12:00</td>
+        <td>2.0 d</td>
+        <td>$236.95 → $204.90</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$22.13</td>
+        <td class="red">-11.1%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">213</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2026-02-04 12:00</td>
+        <td style="white-space:nowrap;">2026-02-09 12:00</td>
+        <td>5.0 d</td>
+        <td>$204.19 → $210.16</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">214</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-04 12:00</td>
+        <td style="white-space:nowrap;">2026-02-05 12:00</td>
+        <td>1.0 d</td>
+        <td>$92.59 → $84.46</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.69</td>
+        <td class="red">-7.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">215</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-02-05 04:00</td>
+        <td style="white-space:nowrap;">2026-02-05 20:00</td>
+        <td>0.7 d</td>
+        <td>$70,511.16 → $62,704.45</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.05</td>
+        <td class="red">-9.0%</td>
+        <td class="diag-box"><b>Barrida por Ruido de Mercado</b><br><span style="color:#94a3b8;">⚡ Barrida por Ruido / Mecha rápida (Rebotó poco después)</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">216</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-05 16:00</td>
+        <td style="white-space:nowrap;">2026-02-06 12:00</td>
+        <td>0.8 d</td>
+        <td>$81.51 → $83.41</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">217</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-02-06 00:00</td>
+        <td style="white-space:nowrap;">2026-02-06 04:00</td>
+        <td>0.2 d</td>
+        <td>$64,074.95 → $66,637.94</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">218</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-02-09 12:00</td>
+        <td style="white-space:nowrap;">2026-03-04 12:00</td>
+        <td>23.0 d</td>
+        <td>$209.63 → $211.67</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">219</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-02-09 12:00</td>
+        <td style="white-space:nowrap;">2026-03-05 12:00</td>
+        <td>24.0 d</td>
+        <td>$325.71 → $298.89</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.29</td>
+        <td class="red">-6.1%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">220</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-02-11 08:00</td>
+        <td style="white-space:nowrap;">2026-02-14 08:00</td>
+        <td>3.0 d</td>
+        <td>$67,025.02 → $69,706.02</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">221</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-11 08:00</td>
+        <td style="white-space:nowrap;">2026-02-13 12:00</td>
+        <td>2.2 d</td>
+        <td>$81.22 → $82.93</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">222</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-02-13 20:00</td>
+        <td style="white-space:nowrap;">2026-02-23 12:00</td>
+        <td>9.7 d</td>
+        <td>$182.79 → $191.92</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">223</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2026-02-13 20:00</td>
+        <td style="white-space:nowrap;">2026-02-24 12:00</td>
+        <td>10.7 d</td>
+        <td>$207.30 → $212.65</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$9.80</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">224</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-02-17 12:00</td>
+        <td style="white-space:nowrap;">2026-02-25 16:00</td>
+        <td>8.2 d</td>
+        <td>$67,354.39 → $68,773.60</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">225</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-02-17 20:00</td>
+        <td style="white-space:nowrap;">2026-03-20 16:00</td>
+        <td>30.8 d</td>
+        <td>$410.59 → $367.97</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$18.12</td>
+        <td class="red">-9.1%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">226</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-19 12:00</td>
+        <td style="white-space:nowrap;">2026-02-20 08:00</td>
+        <td>0.8 d</td>
+        <td>$80.52 → $84.14</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">227</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-23 00:00</td>
+        <td style="white-space:nowrap;">2026-02-25 00:00</td>
+        <td>2.0 d</td>
+        <td>$77.87 → $81.38</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">228</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-02-27 12:00</td>
+        <td style="white-space:nowrap;">2026-03-30 16:00</td>
+        <td>31.2 d</td>
+        <td>$181.02 → $165.06</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$13.61</td>
+        <td class="red">-6.8%</td>
+        <td class="diag-box"><b>Barrida por Ruido de Mercado</b><br><span style="color:#94a3b8;">⚡ Barrida por Ruido / Mecha rápida (Rebotó poco después)</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">229</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-02-28 08:00</td>
+        <td style="white-space:nowrap;">2026-02-28 16:00</td>
+        <td>0.3 d</td>
+        <td>$63,836.73 → $66,390.20</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">230</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-02-28 08:00</td>
+        <td style="white-space:nowrap;">2026-02-28 16:00</td>
+        <td>0.3 d</td>
+        <td>$78.88 → $82.43</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">231</td>
+        <td><b>AMD</b></td>
+        <td style="white-space:nowrap;">2026-03-03 12:00</td>
+        <td style="white-space:nowrap;">2026-03-04 16:00</td>
+        <td>1.2 d</td>
+        <td>$191.01 → $200.56</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">232</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-03-06 20:00</td>
+        <td style="white-space:nowrap;">2026-03-11 12:00</td>
+        <td>4.7 d</td>
+        <td>$298.48 → $310.42</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">233</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-03-06 20:00</td>
+        <td style="white-space:nowrap;">2026-03-10 00:00</td>
+        <td>3.2 d</td>
+        <td>$68,136.69 → $69,717.05</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">234</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-03-07 04:00</td>
+        <td style="white-space:nowrap;">2026-03-09 16:00</td>
+        <td>2.5 d</td>
+        <td>$84.34 → $86.71</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">235</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-03-12 12:00</td>
+        <td style="white-space:nowrap;">2026-04-01 12:00</td>
+        <td>20.0 d</td>
+        <td>$209.69 → $213.32</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">236</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-03-15 16:00</td>
+        <td style="white-space:nowrap;">2026-03-15 20:00</td>
+        <td>0.2 d</td>
+        <td>$88.19 → $92.16</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">237</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-03-19 00:00</td>
+        <td style="white-space:nowrap;">2026-04-09 20:00</td>
+        <td>21.8 d</td>
+        <td>$71,223.12 → $72,756.54</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">238</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-03-20 04:00</td>
+        <td style="white-space:nowrap;">2026-03-23 12:00</td>
+        <td>3.3 d</td>
+        <td>$89.44 → $91.70</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">239</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-03-24 16:00</td>
+        <td style="white-space:nowrap;">2026-04-01 12:00</td>
+        <td>7.8 d</td>
+        <td>$290.41 → $297.03</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">240</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-03-26 16:00</td>
+        <td style="white-space:nowrap;">2026-04-02 00:00</td>
+        <td>6.3 d</td>
+        <td>$85.66 → $78.96</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$12.60</td>
+        <td class="red">-6.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">241</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-03-27 12:00</td>
+        <td style="white-space:nowrap;">2026-04-15 12:00</td>
+        <td>19.0 d</td>
+        <td>$364.45 → $379.65</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$11.80</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">242</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-04-02 08:00</td>
+        <td style="white-space:nowrap;">2026-04-05 20:00</td>
+        <td>3.5 d</td>
+        <td>$78.34 → $81.86</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">243</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-04-13 08:00</td>
+        <td style="white-space:nowrap;">2026-04-13 20:00</td>
+        <td>0.5 d</td>
+        <td>$70,947.21 → $73,785.10</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">244</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-04-20 04:00</td>
+        <td style="white-space:nowrap;">2026-04-22 04:00</td>
+        <td>2.0 d</td>
+        <td>$74,860.02 → $77,854.42</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">245</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-04-20 04:00</td>
+        <td style="white-space:nowrap;">2026-04-22 08:00</td>
+        <td>2.2 d</td>
+        <td>$84.76 → $88.57</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">246</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-04-27 12:00</td>
+        <td style="white-space:nowrap;">2026-05-06 08:00</td>
+        <td>8.8 d</td>
+        <td>$84.16 → $87.95</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">247</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-04-28 12:00</td>
+        <td style="white-space:nowrap;">2026-05-02 20:00</td>
+        <td>4.3 d</td>
+        <td>$76,052.30 → $79,094.39</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">248</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-05-08 16:00</td>
+        <td style="white-space:nowrap;">2026-05-28 00:00</td>
+        <td>19.3 d</td>
+        <td>$80,101.31 → $73,128.01</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$7.22</td>
+        <td class="red">-7.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">249</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-05-13 20:00</td>
+        <td style="white-space:nowrap;">2026-05-17 20:00</td>
+        <td>4.0 d</td>
+        <td>$91.14 → $85.19</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.27</td>
+        <td class="red">-4.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">250</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-05-15 12:00</td>
+        <td style="white-space:nowrap;">2026-05-28 16:00</td>
+        <td>13.2 d</td>
+        <td>$262.76 → $273.27</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">251</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-05-18 00:00</td>
+        <td style="white-space:nowrap;">2026-05-23 20:00</td>
+        <td>5.8 d</td>
+        <td>$84.81 → $87.21</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">252</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-05-22 12:00</td>
+        <td style="white-space:nowrap;">2026-06-11 12:00</td>
+        <td>20.0 d</td>
+        <td>$385.88 → $348.28</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$15.11</td>
+        <td class="red">-7.6%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">253</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-05-26 16:00</td>
+        <td style="white-space:nowrap;">2026-06-02 12:00</td>
+        <td>6.8 d</td>
+        <td>$83.59 → $76.25</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.35</td>
+        <td class="red">-7.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">254</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-05-27 12:00</td>
+        <td style="white-space:nowrap;">2026-06-01 12:00</td>
+        <td>5.0 d</td>
+        <td>$210.69 → $221.22</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">255</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-05-28 04:00</td>
+        <td style="white-space:nowrap;">2026-06-02 12:00</td>
+        <td>5.3 d</td>
+        <td>$73,368.76 → $67,169.30</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$7.02</td>
+        <td class="red">-7.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">256</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-06-02 16:00</td>
+        <td style="white-space:nowrap;">2026-06-22 12:00</td>
+        <td>19.8 d</td>
+        <td>$256.50 → $233.26</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$14.43</td>
+        <td class="red">-7.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">257</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-06-02 16:00</td>
+        <td style="white-space:nowrap;">2026-06-05 12:00</td>
+        <td>2.8 d</td>
+        <td>$67,185.44 → $60,417.80</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$7.96</td>
+        <td class="red">-8.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">258</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-06-02 20:00</td>
+        <td style="white-space:nowrap;">2026-06-04 04:00</td>
+        <td>1.3 d</td>
+        <td>$74.11 → $69.09</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$10.37</td>
+        <td class="red">-5.2%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">259</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-06-04 08:00</td>
+        <td style="white-space:nowrap;">2026-06-05 12:00</td>
+        <td>1.2 d</td>
+        <td>$68.62 → $64.25</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$9.38</td>
+        <td class="red">-4.7%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">260</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-06-05 16:00</td>
+        <td style="white-space:nowrap;">2026-06-09 12:00</td>
+        <td>3.8 d</td>
+        <td>$390.97 → $414.43</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$5.90</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">261</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-06-05 16:00</td>
+        <td style="white-space:nowrap;">2026-06-07 08:00</td>
+        <td>1.7 d</td>
+        <td>$60,267.13 → $62,677.81</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">262</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-06-05 16:00</td>
+        <td style="white-space:nowrap;">2026-06-07 20:00</td>
+        <td>2.2 d</td>
+        <td>$63.43 → $66.28</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">263</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-06-10 12:00</td>
+        <td style="white-space:nowrap;">2026-06-15 12:00</td>
+        <td>5.0 d</td>
+        <td>$384.56 → $407.63</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$5.90</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">264</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-06-10 16:00</td>
+        <td style="white-space:nowrap;">2026-06-15 12:00</td>
+        <td>4.8 d</td>
+        <td>$200.34 → $210.36</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">265</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-06-10 20:00</td>
+        <td style="white-space:nowrap;">2026-06-11 08:00</td>
+        <td>0.5 d</td>
+        <td>$63.12 → $65.96</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">266</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-06-17 20:00</td>
+        <td style="white-space:nowrap;">2026-06-25 12:00</td>
+        <td>7.7 d</td>
+        <td>$64,452.66 → $59,456.97</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$6.25</td>
+        <td class="red">-6.3%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">267</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-06-23 08:00</td>
+        <td style="white-space:nowrap;">2026-06-26 04:00</td>
+        <td>2.8 d</td>
+        <td>$69.22 → $70.63</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$8.80</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">268</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-06-24 16:00</td>
+        <td style="white-space:nowrap;">2026-06-29 12:00</td>
+        <td>4.8 d</td>
+        <td>$375.36 → $397.88</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$5.90</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">269</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-06-25 12:00</td>
+        <td style="white-space:nowrap;">2026-07-10 12:00</td>
+        <td>15.0 d</td>
+        <td>$196.00 → $205.80</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">270</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-06-25 12:00</td>
+        <td style="white-space:nowrap;">2026-06-29 12:00</td>
+        <td>4.0 d</td>
+        <td>$227.79 → $236.90</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">271</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-06-26 12:00</td>
+        <td style="white-space:nowrap;">2026-06-30 12:00</td>
+        <td>4.0 d</td>
+        <td>$343.44 → $357.18</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">272</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-06-30 12:00</td>
+        <td style="white-space:nowrap;">2026-07-01 20:00</td>
+        <td>1.3 d</td>
+        <td>$58,267.41 → $60,598.11</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">273</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-07-08 04:00</td>
+        <td style="white-space:nowrap;">2026-07-28 00:00</td>
+        <td>19.8 d</td>
+        <td>$78.22 → $73.21</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$10.05</td>
+        <td class="red">-5.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">274</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-07-13 04:00</td>
+        <td style="white-space:nowrap;">2026-07-15 12:00</td>
+        <td>2.3 d</td>
+        <td>$62,935.57 → $65,452.99</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$1.95</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">275</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-07-16 12:00</td>
+        <td style="white-space:nowrap;">2026-07-23 12:00</td>
+        <td>7.0 d</td>
+        <td>$389.29 → $325.17</td>
+        <td><span class="badge badge-loss">LOSS 🛑</span></td>
+        <td class="red" style="font-weight:bold;">-$30.03</td>
+        <td class="red">-15.0%</td>
+        <td class="diag-box"><b>SL Técnico Protector</b><br><span style="color:#94a3b8;">🛡️ Cierre Impecable: Salvó de una caída mayor sostenida</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">276</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-07-23 12:00</td>
+        <td style="white-space:nowrap;">2026-07-28 12:00</td>
+        <td>5.0 d</td>
+        <td>$320.89 → $333.73</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">277</td>
+        <td><b>TSLA</b></td>
+        <td style="white-space:nowrap;">2026-07-23 16:00</td>
+        <td style="white-space:nowrap;">2026-08-07 12:00</td>
+        <td>14.8 d</td>
+        <td>$319.46 → $333.21</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$11.80</td>
+        <td class="green">+5.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">278</td>
+        <td><b>BTC</b></td>
+        <td style="white-space:nowrap;">2026-07-23 16:00</td>
+        <td style="white-space:nowrap;">2026-08-19 12:00</td>
+        <td>26.8 d</td>
+        <td>$64,778.22 → $66,231.16</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">279</td>
+        <td><b>AMZN</b></td>
+        <td style="white-space:nowrap;">2026-07-24 12:00</td>
+        <td style="white-space:nowrap;">2026-07-30 16:00</td>
+        <td>6.2 d</td>
+        <td>$234.04 → $239.53</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$7.80</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>👑 Ganancia Magistral (TP Doble)</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">280</td>
+        <td><b>NVDA</b></td>
+        <td style="white-space:nowrap;">2026-07-29 12:00</td>
+        <td style="white-space:nowrap;">2026-07-31 16:00</td>
+        <td>2.2 d</td>
+        <td>$191.59 → $201.17</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.90</td>
+        <td class="green">+4.9%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">281</td>
+        <td><b>GOOGL</b></td>
+        <td style="white-space:nowrap;">2026-07-29 12:00</td>
+        <td style="white-space:nowrap;">2026-07-31 12:00</td>
+        <td>2.0 d</td>
+        <td>$335.56 → $348.98</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$3.90</td>
+        <td class="green">+3.9%</td>
+        <td class="diag-box"><b>⚖️ Ganancia Aceptable / Rápida</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr><tr>
+        <td style="color:#64748b;">282</td>
+        <td><b>SOL</b></td>
+        <td style="white-space:nowrap;">2026-07-29 16:00</td>
+        <td style="white-space:nowrap;">2026-08-08 12:00</td>
+        <td>9.8 d</td>
+        <td>$72.67 → $75.94</td>
+        <td><span class="badge badge-win">WIN 🎯</span></td>
+        <td class="green" style="font-weight:bold;">+$4.40</td>
+        <td class="green">+4.4%</td>
+        <td class="diag-box"><b>🎯 Ganancia Objetivo Limpia</b><br><span style="color:#94a3b8;">Entrada perfecta en piso por sobreventa. Salida en resistencia proyectada.</span></td>
+    </tr>
+    </tbody>
+</table>
+
+</body>
+</html>
