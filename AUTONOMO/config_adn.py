@@ -19,6 +19,8 @@ BINGX_F2_MAX_POS = 3        # Máximo 3 posiciones macro
 BINGX_MARGEN_USD = 10.0     # $10 USD margen por trade
 BINGX_LEVERAGE = 10         # 10X apalancamiento
 
+COOLDOWN_HORAS_TRAS_SL = 24.0 # 🧊 Enfriamiento obligatorio de 24h para un activo que toque SL (Anti-Revenge Trading)
+
 BINANCE_BTC_MAX_BALAS = 3   # Máximo 3 compras de por vida hasta vender en TP
 BINANCE_MARGEN_USD = 20.0   # $20 USD margen por bala (acumulador ganador)
 BINANCE_LEVERAGE = 5        # 5X Cross Margin

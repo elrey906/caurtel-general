@@ -24,6 +24,7 @@ sys.path.insert(0, PROD_DIR)
 from config_adn import (
     CONFIG_FILE, ESTADO_FILE, LOG_FILE,
     BINGX_F1_MAX_POS, BINGX_F2_MAX_POS, BINGX_MARGEN_USD, BINGX_LEVERAGE,
+    COOLDOWN_HORAS_TRAS_SL,
     BINANCE_BTC_MAX_BALAS, BINANCE_MARGEN_USD, BINANCE_LEVERAGE,
     UNIVERSO_FASE1, UNIVERSO_FASE2, UNIVERSO_BTC_BINANCE
 )
@@ -65,6 +66,7 @@ def leer_estado_agente():
         "btc_costo_promedio": 0.0,
         "radar_top3_fase1": [],
         "radar_top3_fase2": [],
+        "enfriamiento_sl": {},        # {sym: ts_expira} -> Bloqueo anti-venganza si pierde
         "ultima_actualizacion": datetime.datetime.now().isoformat()
     })
 
@@ -202,14 +204,24 @@ def evaluar_y_ejecutar_fase1(st, modo, ocupados):
                 "FASE1_RAPIDA", sym, "BINGX", "LONG", pos["entry_px"], px,
                 pos["margen_usd"], pnl_usd, "STOP_LOSS_F1", f"{horas_vida:.1f}h"
             )
+            
+            # 🧊 ENFRIAMIENTO ACTIVADO (Anti-Revenge Trading)
+            if "enfriamiento_sl" not in st: st["enfriamiento_sl"] = {}
+            st["enfriamiento_sl"][sym] = now_ts + (COOLDOWN_HORAS_TRAS_SL * 3600.0)
+            log.warning(f"🧊 [ENFRIAMIENTO ACTIVO] {sym} congelado por {COOLDOWN_HORAS_TRAS_SL}h tras Stop Loss.")
+            
             del pos_f1[sym]
             continue
+
+    # Limpiar enfriamientos expirados
+    enfriamiento = st.get("enfriamiento_sl", {})
+    activos_congelados = {s for s, exp in list(enfriamiento.items()) if now_ts < exp}
 
     # 2. Evaluación de Nuevas Entradas (Si hay ranura libre < 3)
     candidatos_f1 = []
     for cfg in UNIVERSO_FASE1:
         sym = cfg["sym"]
-        if sym in pos_f1 or sym in ocupados:
+        if sym in pos_f1 or sym in ocupados or sym in activos_congelados:
             continue
         adn = calcular_adn_activo(sym, cfg["bingx_sym"], "CRIPTO")
         adn["cfg"] = cfg
@@ -288,6 +300,12 @@ def evaluar_y_ejecutar_fase2(st, modo, ocupados):
                 "FASE2_MACRO", sym, "BINGX", "LONG", pos["entry_px"], px,
                 pos["margen_usd"], pnl_usd, "STOP_LOSS_F2", f"{dias_vida:.1f} días"
             )
+            
+            # 🧊 ENFRIAMIENTO ACTIVADO (Anti-Revenge Trading en Wall Street)
+            if "enfriamiento_sl" not in st: st["enfriamiento_sl"] = {}
+            st["enfriamiento_sl"][sym] = now_ts + (COOLDOWN_HORAS_TRAS_SL * 3600.0)
+            log.warning(f"🧊 [ENFRIAMIENTO ACTIVO] {sym} congelado por {COOLDOWN_HORAS_TRAS_SL}h tras Stop Loss.")
+            
             del pos_f2[sym]
             continue
             
@@ -323,11 +341,15 @@ def evaluar_y_ejecutar_fase2(st, modo, ocupados):
             del pos_f2[sym]
             continue
 
+    # Limpiar enfriamientos expirados para Fase 2
+    enfriamiento_f2 = st.get("enfriamiento_sl", {})
+    activos_congelados_f2 = {s for s, exp in list(enfriamiento_f2.items()) if now_ts < exp}
+
     # 2. Evaluación de Nuevas Entradas Macro (Si cupo < 3)
     candidatos_f2 = []
     for cfg in UNIVERSO_FASE2:
         sym = cfg["sym"]
-        if sym in pos_f2 or sym in ocupados:
+        if sym in pos_f2 or sym in ocupados or sym in activos_congelados_f2:
             continue
         adn = calcular_adn_activo(sym, cfg["bingx_sym"], "ACCION")
         adn["cfg"] = cfg
