@@ -476,7 +476,7 @@ def ciclo_operativo_autonomo():
         except Exception as e:
             log.error(f"Error en bucle operativo: {e}")
             
-        time.sleep(20)
+        time.sleep(35)
 
 if __name__ == "__main__":
     ciclo_operativo_autonomo()

@@ -87,6 +87,13 @@ def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id):
     pos_side = "LONG" if side.upper() == "BUY" or side.upper() == "LONG" else "SHORT"
     order_side = "BUY" if pos_side == "LONG" else "SELL"
     
+    # 🛡️ CANDADO DE ACERO: FASE 1 (ALTCOINS) ESTÁ 100% PROHIBIDA EN REAL (SOLO PAPER TRADING)
+    f1_alts = ["SOL", "ETH", "NEAR", "SUI", "AVAX", "DOGE"]
+    for alt in f1_alts:
+        if bingx_sym.upper().startswith(alt):
+            logging.getLogger().warning(f"🚫 [CANDADO ACTIVO] Intento de orden real en {bingx_sym} bloqueado: Fase 1 opera exclusivamente en FANTASMA/PAPER TRADING.")
+            return {"code": -997, "msg": "BLOQUEO_FASE1_SOLO_PAPER_TRADING"}
+
     params = {
         "symbol": bingx_sym,
         "side": order_side,

@@ -3743,16 +3743,33 @@ with tab7:
     )
     st.markdown("<br>", unsafe_allow_html=True)
 
-    @st.cache_data(ttl=60)
+    @st.cache_data(ttl=120)
     def procesar_mapa_de_calor_total():
-        # Consulta global de precios en vivo de BingX (bulk rápido)
+        # Consulta global de precios en vivo (BingX + Binance con cabeceras y timeout ampliado)
+        headers_req = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         res_prices = {}
+        # 1. BingX Perpetual Tickers (Bulk)
         try:
-            r = requests.get('https://open-api.bingx.com/openApi/swap/v2/quote/ticker', timeout=3).json()
+            r = requests.get('https://open-api.bingx.com/openApi/swap/v2/quote/ticker', headers=headers_req, timeout=7).json()
             if r.get("code") == 0 and "data" in r:
                 res_prices = {t["symbol"]: clean_num(t.get("lastPrice", 0)) for t in r["data"]}
         except Exception:
             pass
+
+        # 2. Respaldo Binance Futures & Vision si faltan o para confluencia
+        if len(res_prices) < 20:
+            try:
+                r_bin = requests.get('https://fapi.binance.com/fapi/v1/ticker/price', headers=headers_req, timeout=6).json()
+                if isinstance(r_bin, list):
+                    for item_b in r_bin:
+                        s_b = item_b.get("symbol", "")
+                        p_b = clean_num(item_b.get("price", 0))
+                        res_prices[s_b] = p_b
+                        # Mapear formato BingX "BTC-USDT"
+                        if s_b.endswith("USDT"):
+                            res_prices[f"{s_b[:-4]}-USDT"] = p_b
+            except Exception:
+                pass
 
         data_results = []
         velas_dir = os.path.join(BASE_DIR, "VELAS")
