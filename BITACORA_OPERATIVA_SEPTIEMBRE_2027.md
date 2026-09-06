@@ -144,3 +144,31 @@ Para estar 100% seguros de que el sistema se mantiene en reposo absoluto sin rea
 * **Cerebros Antiguos / Guardia Resucitador:** Totalmente excluidos. No se reactivan bajo ningún escenario.
 
 
+
+---
+
+## 👑 CEREBRO 4: MEGA-AGENTE ADN AUTÓNOMO (PILOTO AUTOMÁTICO BIAXIAL)
+* **Fecha de Lanzamiento e Integración:** 06 de Septiembre de 2026 (01:55 VET / 05:55 UTC)
+* **Modo de Operación:** `REAL` 🟢 (Configurado en `AUTONOMO/config_mega_agente.json`)
+* **Exchanges Conectados:**
+  * **BingX Futuros Perpetuos (Modo Cobertura / Hedge):**
+    * **Fase 1 (Rápidas - Altcoins Alto Beta):** Límite estricto de **3 posiciones simultáneas** ($10 USD margen @ 10x c/u). Monitoreo por horas y time-stop de 48h.
+    * **Fase 2 (Macro - Wall Street & Blue Chips):** Límite estricto de **3 posiciones simultáneas** ($10 USD margen @ 10x c/u). Chequeo de estancamiento día 10 y time-stop máximo día 25.
+  * **Binance Cross Margin 5X (Exclusivo Bitcoin):**
+    * Límite estricto de **3 balas de por vida** ($10 USD @ 5X c/u).
+    * **Candado Inviolable:** Una vez disparadas las 3 compras, queda congelado y no compra nunca más hasta que venda la totalidad en Take Profit (+4.0%) y recicle las balas.
+* **Dashboard Independiente:** Puerto `8560` (`AUTONOMO/dashboard_mega_agente.py`).
+* **Libro Mayor Financiero:** `AUTONOMO/libro_mayor_pnl.json` (Contabilidad pura en dólares USD, ratios de acierto y registro de swaps/fees).
+
+### 🛡️ Blindajes de Acero y Reglas Sagradas
+1. **Regla Sagrada de MSFT SHORT:**
+   * La posición SHORT manual/heredada de MSFT en BingX es **100% INTOCABLE**.
+   * Bloqueo a nivel de código en `conector_exchanges.py`: si cualquier rutina intenta enviar una orden de cierre sobre `MSFT` con `positionSide: SHORT`, la API la aborta de inmediato con código de error de seguridad.
+   * **Permiso para MSFT LONG:** Si el radar ADN emite señal de compra alcista para MSFT, el sistema tiene plena autorización para abrir y gestionar la posición en `positionSide: LONG` de forma paralela e independiente en Modo Cobertura.
+2. **Pacto de Respeto Absoluto entre Cerebros:**
+   * El Mega-Agente audita las posiciones de Cerebro 1 (`estado_blue_chips.json`), Cerebro 3 (`estado_trifecta_hibrido.json`) y las posiciones vivas en la API de BingX para **jamás duplicar un activo** que ya esté ocupado.
+   * Todas las órdenes del Mega-Agente llevan el prefijo determinista `AUTO_` para gestionar única y exclusivamente sus propias posiciones.
+3. **Protección Anti-Luz, Anti-Caídas de Red y Auto-Reanimación:**
+   * Creado el guardián vigilante `guardian_anti_apagones.sh`.
+   * Integrado en `iniciar_solo_septiembre.sh` y en el autostart de GNOME (`cazador-septiembre.desktop`).
+   * En caso de corte eléctrico o reinicio de la PC, los 4 cerebros y sus respectivos dashboards arrancan y se reanudan solos al encender la máquina.
