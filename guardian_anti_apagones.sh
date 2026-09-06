@@ -11,33 +11,33 @@ while true; do
     # 1. Verificar si hay conexión básica antes de revivir procesos
     if ping -c 1 8.8.8.8 > /dev/null 2>&1 || ping -c 1 1.1.1.1 > /dev/null 2>&1; then
         
-        # Cerebro 1: Blue Chips Wall Street (BingX)
-        if ! pgrep -f "cazador_blue_chips_wall_street.py" > /dev/null; then
-            echo "[$(date)] ⚠️ Cerebro 1 caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
-            nohup "$VENV/python3" "$DIR_SEPTIEMBRE/cazador_blue_chips_wall_street.py" >> "$LOG_DIR/blue_chips_bot.log" 2>&1 &
-        fi
+        # Cerebros apagados por instrucción del usuario
+        # Cerebro 1: Blue Chips Wall Street (BingX) - APAGADO
+        # if ! pgrep -f "cazador_blue_chips_wall_street.py" > /dev/null; then
+        #     echo "[$(date)] ⚠️ Cerebro 1 caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
+        #     nohup "$VENV/python3" "$DIR_SEPTIEMBRE/cazador_blue_chips_wall_street.py" >> "$LOG_DIR/blue_chips_bot.log" 2>&1 &
+        # fi
 
-        # Cerebro 2: Mega Híbrido BTC (Binance Margin)
-        if ! pgrep -f "cazador_mega_hibrido_btc_dual.py" > /dev/null; then
-            echo "[$(date)] ⚠️ Cerebro 2 caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
-            nohup "$VENV/python3" "$DIR_SEPTIEMBRE/cazador_mega_hibrido_btc_dual.py" >> "$LOG_DIR/mega_hibrido_bot.log" 2>&1 &
-        fi
+        # Cerebro 2: Mega Híbrido BTC (Binance Margin) - APAGADO
+        # if ! pgrep -f "cazador_mega_hibrido_btc_dual.py" > /dev/null; then
+        #     echo "[$(date)] ⚠️ Cerebro 2 caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
+        #     nohup "$VENV/python3" "$DIR_SEPTIEMBRE/cazador_mega_hibrido_btc_dual.py" >> "$LOG_DIR/mega_hibrido_bot.log" 2>&1 &
+        # fi
 
-        # Cerebro 3: Trifecta Cuántica Híbrida
-        if ! pgrep -f "cazador_trifecta_hibrido.py" > /dev/null; then
-            echo "[$(date)] ⚠️ Cerebro 3 caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
-            cd "$DIR_SEPTIEMBRE/HIBRIDO"
-            nohup "$VENV/python3" "$DIR_SEPTIEMBRE/HIBRIDO/cazador_trifecta_hibrido.py" >> "$DIR_SEPTIEMBRE/HIBRIDO/cazador_trifecta.log" 2>&1 &
-            cd "$DIR_SEPTIEMBRE"
-        fi
+        # Cerebro 3: Trifecta Cuántica Híbrida - APAGADO
+        # if ! pgrep -f "cazador_trifecta_hibrido.py" > /dev/null; then
+        #     echo "[$(date)] ⚠️ Cerebro 3 caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
+        #     cd "$DIR_SEPTIEMBRE/HIBRIDO"
+        #     nohup "$VENV/python3" "$DIR_SEPTIEMBRE/HIBRIDO/cazador_trifecta_hibrido.py" >> "$DIR_SEPTIEMBRE/HIBRIDO/cazador_trifecta.log" 2>&1 &
+        #     cd "$DIR_SEPTIEMBRE"
+        # fi
 
-        # Cerebro 4: Mega-Agente Autónomo (Piloto Automático)
-        if ! pgrep -f "cazador_mega_agente_autonomo.py" > /dev/null; then
-            echo "[$(date)] ⚠️ Cerebro 4 Autónomo caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
-            cd "$DIR_SEPTIEMBRE/AUTONOMO"
-            # disabled >> "$DIR_SEPTIEMBRE/AUTONOMO/mega_agente_adn.log" 2>&1 &
-            cd "$DIR_SEPTIEMBRE"
-        fi
+        # Cerebro 4: Mega-Agente Autónomo - APAGADO
+        # if ! pgrep -f "cazador_mega_agente_autonomo.py" > /dev/null; then
+        #     echo "[$(date)] ⚠️ Cerebro 4 Autónomo caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
+        #     cd "$DIR_SEPTIEMBRE/AUTONOMO"
+        #     cd "$DIR_SEPTIEMBRE"
+        # fi
 
         # Dashboard Maestro (8500)
         if ! pgrep -f "dashboard_maestro.py" > /dev/null; then
