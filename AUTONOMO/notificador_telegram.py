@@ -130,3 +130,25 @@ def notificar_cierre_trade(modulo: str, sym: str, side: str, entry_px: float, ex
 🕒 <i>{hora_str}</i>"""
 
     return enviar_mensaje_telegram(mensaje)
+
+def notificar_disparo_binance_btc(num_bala: int, px: float, monto_usd: float, qty_btc: float, es_real: bool = True) -> bool:
+    """
+    Notifica la ejecución o simulación de una bala en Binance Cross Margin 5X para Cerebro 4.
+    """
+    hora_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    tipo_txt = "🟢 REAL BINANCE CROSS MARGIN 5X" if es_real else "👻 FANTASMA (Simulado)"
+    px_str = fmt_px(px)
+    
+    mensaje = f"""🪙 <b>[DISPARO BALA BTC #{num_bala}/3 EN BINANCE]</b>
+━━━━━━━━━━━━━━━━━━━━━━━━
+💎 <b>Activo:</b> #BTC (Bitcoin)
+📂 <b>Módulo:</b> Cerebro 4 · Binance Cross Margin 5X
+💵 <b>Precio de Entrada:</b> {px_str}
+💰 <b>Monto Margen:</b> ${monto_usd:.2f} USD (Nominal: ${monto_usd * 5:.2f} USD @ 5X)
+📦 <b>Lote Acumulado:</b> {qty_btc:.5f} BTC
+🎯 <b>Take Profit Objetivo:</b> +4.0% sobre Costo Promedio (Reciclaje)
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚙️ <b>Modo de Ejecución:</b> {tipo_txt}
+🕒 <i>{hora_str}</i>"""
+
+    return enviar_mensaje_telegram(mensaje)

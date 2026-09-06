@@ -48,7 +48,8 @@ from aprendizaje_ledger import registrar_operacion_cerrada, cargar_json, guardar
 from notificador_telegram import (
     notificar_alerta_fantasma,
     notificar_promocion_real,
-    notificar_cierre_trade
+    notificar_cierre_trade,
+    notificar_disparo_binance_btc
 )
 
 # Configurar Logging
@@ -64,9 +65,27 @@ log = logging.getLogger("MEGA_AGENTE_ADN")
 
 COOLDOWN_SENAL_HORAS = 6.0  # Candado mínimo de 6h para evitar repetir la misma señal
 
+def obtener_modos_operativos():
+    """
+    Retorna la configuración granular de modos:
+    - Fase 1 (Altcoins): FANTASMA por defecto
+    - Fase 2 (Wall Street): FANTASMA por defecto
+    - Binance Margin (BTC): REAL (operaciones vivas en Binance Cross Margin 5X)
+    """
+    cfg = cargar_json(CONFIG_FILE, {
+        "modo_fase1_bingx": "FANTASMA",
+        "modo_fase2_bingx": "FANTASMA",
+        "modo_binance_btc": "REAL"
+    })
+    return {
+        "fase1": cfg.get("modo_fase1_bingx", "FANTASMA").upper(),
+        "fase2": cfg.get("modo_fase2_bingx", "FANTASMA").upper(),
+        "binance_btc": cfg.get("modo_binance_btc", "REAL").upper()
+    }
+
 def obtener_modo_operativo():
-    cfg = cargar_json(CONFIG_FILE, {"modo": "FANTASMA"})
-    return cfg.get("modo", "FANTASMA").upper()
+    modos = obtener_modos_operativos()
+    return modos.get("fase1", "FANTASMA")
 
 def leer_estado_agente():
     st = cargar_json(ESTADO_FILE, {
@@ -527,7 +546,7 @@ def evaluar_y_ejecutar_fase2(st, modo, ocupados):
 # ══════════════════════════════════════════════════════════════════
 # GESTIÓN BINANCE CROSS MARGIN 5X (EXCLUSIVO BITCOIN)
 # ══════════════════════════════════════════════════════════════════
-def evaluar_y_ejecutar_binance_btc(st, modo):
+def evaluar_y_ejecutar_binance_btc(st, modo_btc="REAL"):
     balas = st["binance_btc_balas"]
     now_ts = time.time()
     
@@ -535,22 +554,27 @@ def evaluar_y_ejecutar_binance_btc(st, modo):
     px_btc = adn_btc["precio"]
     if px_btc <= 0: return
 
-    # Monitoreo de Venta en TP
+    # Monitoreo de Venta en TP (+4.0%)
     if len(balas) > 0 and st["btc_costo_promedio"] > 0:
         costo_prom = st["btc_costo_promedio"]
         tp_target = costo_prom * (1.0 + UNIVERSO_BTC_BINANCE["tp_pct"])
         
         if px_btc >= tp_target:
-            log.info(f"🏆 [BINANCE BTC TAKE PROFIT] BTC @ ${px_btc:,.2f} >= TP ${tp_target:,.2f}.")
-            if modo == "REAL":
-                binance_margin_vender_btc(st["btc_acumulado_agente"], f"AUTO_BIN_TP_{int(now_ts)}")
+            log.info(f"🏆 [BINANCE BTC TAKE PROFIT] BTC @ ${px_btc:,.2f} >= TP ${tp_target:,.2f} ({'REAL' if modo_btc == 'REAL' else 'FANTASMA'}).")
+            if modo_btc == "REAL":
+                r_ven = binance_margin_vender_btc(st["btc_acumulado_agente"], f"AUTO_BIN_TP_{int(now_ts)}")
+                log.info(f"✅ Venta ejecutada en Binance Margin: {r_ven}")
                 
             pnl_usd = (px_btc - costo_prom) * st["btc_acumulado_agente"]
             margen_total = len(balas) * BINANCE_MARGEN_USD
             registrar_operacion_cerrada(
-                "BINANCE_BTC_MARGIN", "BTC", "BINANCE", "BUY_MARGIN",
-                costo_prom, px_btc, margen_total, pnl_usd, "TAKE_PROFIT_RECICLADO_BALAS", "Ciclo Binance"
+                "BINANCE_BTC_MARGIN", "BTC", "BINANCE" if modo_btc == "REAL" else "PAPER_BINANCE", "BUY_MARGIN",
+                costo_prom, px_btc, margen_total, pnl_usd, "TAKE_PROFIT_RECICLADO_BALAS", "Ciclo Binance 5X"
             )
+            try:
+                notificar_cierre_trade("BINANCE BTC 5X", "BTC", "BUY_MARGIN", costo_prom, px_btc, pnl_usd, "🎯 TAKE PROFIT +4% (Reciclaje de Balas)", "Ciclo Binance 5X", es_real=(modo_btc == "REAL"))
+            except: pass
+            
             st["binance_btc_balas"] = []
             st["btc_acumulado_agente"] = 0.0
             st["btc_costo_promedio"] = 0.0
@@ -567,17 +591,27 @@ def evaluar_y_ejecutar_binance_btc(st, modo):
                     
             if permitido:
                 num_bala = len(balas) + 1
-                log.info(f"💎 [DISPARO BALA FANTASMA {num_bala}/3 EN BINANCE BTC] Precio: ${px_btc:,.2f} | Monto: ${BINANCE_MARGEN_USD} USD @ 5X")
-                
                 qty_btc_bala = (BINANCE_MARGEN_USD * BINANCE_LEVERAGE) / px_btc
-                if modo == "REAL":
-                    binance_margin_comprar_btc(BINANCE_MARGEN_USD, f"AUTO_BIN_B{num_bala}_{int(now_ts)}")
+                
+                if modo_btc == "REAL":
+                    log.info(f"💎 [DISPARO BALA REAL {num_bala}/3 EN BINANCE BTC] Precio: ${px_btc:,.2f} | Monto: ${BINANCE_MARGEN_USD} USD @ 5X")
+                    r_ord = binance_margin_comprar_btc(BINANCE_MARGEN_USD, f"AUTO_BIN_B{num_bala}_{int(now_ts)}")
+                    log.info(f"✅ Respuesta compra Binance Margin: {r_ord}")
+                    try:
+                        notificar_disparo_binance_btc(num_bala, px_btc, BINANCE_MARGEN_USD, qty_btc_bala, es_real=True)
+                    except: pass
+                else:
+                    log.info(f"👻 [DISPARO BALA FANTASMA {num_bala}/3 EN BINANCE BTC] Precio: ${px_btc:,.2f} | Monto: ${BINANCE_MARGEN_USD} USD @ 5X")
+                    try:
+                        notificar_disparo_binance_btc(num_bala, px_btc, BINANCE_MARGEN_USD, qty_btc_bala, es_real=False)
+                    except: pass
                     
                 balas.append({
                     "bala_num": num_bala,
                     "precio": px_btc,
                     "monto_usd": BINANCE_MARGEN_USD,
                     "qty_btc": qty_btc_bala,
+                    "modo": modo_btc,
                     "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
                 })
                 
@@ -585,7 +619,7 @@ def evaluar_y_ejecutar_binance_btc(st, modo):
                 costo_total = sum(b["qty_btc"] * b["precio"] for b in balas)
                 st["btc_acumulado_agente"] = total_btc
                 st["btc_costo_promedio"] = round(costo_total / total_btc, 2)
-                log.info(f"✅ Nuevo Costo Promedio Agente BTC: ${st['btc_costo_promedio']:,.2f} (Total Balas: {len(balas)}/3)")
+                log.info(f"✅ Nuevo Costo Promedio Agente BTC: ${st['btc_costo_promedio']:,.2f} (Total Balas: {len(balas)}/3 | Modo: {modo_btc})")
 
 # ══════════════════════════════════════════════════════════════════
 # BUCLE PRINCIPAL DEL MEGA-AGENTE
@@ -594,27 +628,27 @@ def ciclo_operativo_autonomo():
     log.info("=" * 75)
     log.info("👑 INICIANDO MOTOR AUTÓNOMO: MEGA-AGENTE ADN CUÁNTICO (PILOTO AUTOMÁTICO)")
     log.info(f"⏰ Hora de Inicio: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    log.info("👻 MODO FANTASMA OBLIGATORIO POR DEFECTO + BLINDAJE ANTI-BUCLE (COOLDOWN 6H)")
+    log.info("👻 FASE 1 & 2 EN MODO FANTASMA (BINGX) | 🟢 BINANCE MARGIN BTC EN MODO REAL")
     log.info(f"🛡️ Blindaje de Respeto Activado (MSFT, Cerebro 1 Blue Chips y Cerebro 3 Trifecta Intocables)")
     log.info("=" * 75)
     
     while True:
         try:
-            modo = obtener_modo_operativo()
+            modos = obtener_modos_operativos()
             st = leer_estado_agente()
             ocupados = activos_ocupados_por_otros_cerebros()
             
             # Sincronización viva segura
-            sincronizar_posiciones_reales_bingx(st, modo)
+            sincronizar_posiciones_reales_bingx(st, modos["fase2"])
             
-            # 1. Ejecutar Fase 1 (Altcoins Rápidas)
-            evaluar_y_ejecutar_fase1(st, modo, ocupados)
+            # 1. Ejecutar Fase 1 (Altcoins Rápidas) en su modo (FANTASMA)
+            evaluar_y_ejecutar_fase1(st, modos["fase1"], ocupados)
             
-            # 2. Ejecutar Fase 2 (Wall Street Macro)
-            evaluar_y_ejecutar_fase2(st, modo, ocupados)
+            # 2. Ejecutar Fase 2 (Wall Street Macro) en su modo (FANTASMA)
+            evaluar_y_ejecutar_fase2(st, modos["fase2"], ocupados)
             
-            # 3. Ejecutar Binance Margin (BTC Exclusivo)
-            evaluar_y_ejecutar_binance_btc(st, modo)
+            # 3. Ejecutar Binance Margin (BTC Exclusivo) en su modo (REAL)
+            evaluar_y_ejecutar_binance_btc(st, modos["binance_btc"])
             
             guardar_estado_agente(st)
             
