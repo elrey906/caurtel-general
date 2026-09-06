@@ -14,7 +14,7 @@ Visualiza:
 =============================================================================
 """
 import streamlit as st
-import os, sys, json, datetime, pandas as pd, numpy as np
+import os, sys, time, json, datetime, pandas as pd, numpy as np
 
 st.set_page_config(page_title="Mega-Agente ADN Autónomo", page_icon="🧬", layout="wide")
 
