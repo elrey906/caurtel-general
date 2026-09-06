@@ -128,72 +128,41 @@ def obtener_precio_actual(bingx_sym):
 # Los LONGS de MSFT y de todos los demás activos SÍ se pueden operar y adoptar.
 
 def sincronizar_y_adoptar_bingx(estado):
-    """Sincroniza y adopta posiciones vivas de BingX respetando el blindaje del SHORT de MSFT."""
+    """
+    Sincroniza ÚNICAMENTE las posiciones abiertas y gestionadas por Cerebro 1.
+    BLINDAJE DE ADOPCIÓN ABSOLUTO:
+    1. Jamás adopta posiciones externas de BingX ni de otros cerebros (Cerebro 3, Cerebro 4, manuales).
+    2. El SHORT de MSFT es 100% intocable, sagrado y blindado.
+    3. Si la API falla, no borra el estado local (Circuit Breaker).
+    4. Si una posición de Cerebro 1 ya no está viva en BingX, la liquida limpiamente.
+    """
     modo = obtener_modo_operativo()
     if modo != "REAL":
         return
         
     r = bingx_api_request("GET", "/openApi/swap/v2/user/positions")
-    if r.get("code") != 0 or "data" not in r:
+    if r.get("code") != 0 or "data" not in r or not isinstance(r.get("data"), list):
         return
         
     live_positions = r.get("data", [])
     posiciones = estado.setdefault("posiciones", {})
     
+    # Identificar símbolos con posición real viva en BingX
+    syms_vivos = set()
     for lp in live_positions:
-        sym = lp.get("symbol", "")
-        pos_side = lp.get("positionSide", "LONG").upper()
         amt = abs(float(lp.get("positionAmt", 0.0)))
-        entry_p = float(lp.get("avgPrice", lp.get("entryPrice", 0.0)))
-        mark_p = float(lp.get("markPrice", 0.0))
-        
-        # Filtro de posición real y viva
-        if amt <= 0:
-            continue
-            
-        # Si el valor nocional es insignificante o posición fantasma
-        val_nocional = amt * (mark_p if mark_p > 0 else entry_p)
-        if val_nocional < 1.0:
-            continue
-            
-        # 🔒 REGLA DE ORO SUPREMA: EL SHORT DE MSFT ES 100% INTOCABLE
-        if ("MSFT" in sym.upper() or "MICROSOFT" in sym.upper()) and pos_side == "SHORT":
-            # Ignorado por completo: intocable, jamás adoptar, jamás cerrar, jamás modificar
-            continue
-            
-        # Fallback seguro si entryPrice vino en 0
-        if entry_p <= 0:
-            entry_p = mark_p if mark_p > 0 else (obtener_precio_actual(sym) or 0.0)
-            
-        if entry_p <= 0:
-            continue
-            
-        # Para LONGS (incluyendo MSFT LONG y demás activos): Adopción institucional
-        asset_match = next((a for a in ASSETS if a["bingx_sym"] == sym), None)
-        if not asset_match:
-            continue
-            
-        ticker = asset_match["ticker"]
-        if ticker not in posiciones and pos_side == "LONG":
-            sl = round(entry_p * (1.0 - asset_match['sl']), asset_match['price_prec'])
-            tp1 = round(entry_p * (1.0 + asset_match['be']), asset_match['price_prec'])
-            tp2 = round(entry_p * (1.0 + (asset_match['be'] * 3.0)), asset_match['price_prec'])
-            
-            posiciones[ticker] = {
-                "activo": ticker,
-                "side": "LONG",
-                "entry_px": entry_p,
-                "sl": sl,
-                "tp1": tp1,
-                "tp2": tp2,
-                "margen_actual": CAPITAL_BASE_NODO,
-                "ts_entry": time.time(),
-                "tp1_hit": False,
-                "realized_cash": 0.0,
-                "adoptada": True
-            }
-            guardar_estado(estado)
-            print(f"📥 [POSICIÓN ADOPTADA DE BINGX] {ticker} LONG @ ${entry_p} | SL: ${sl} | TP1: ${tp1} (SHORT MSFT Protegido)")
+        if amt > 0:
+            syms_vivos.add(lp.get("symbol", ""))
+
+    # Auditar exclusivamente las posiciones registradas por Cerebro 1
+    for ticker in list(posiciones.keys()):
+        asset_match = next((a for a in ASSETS if a["ticker"] == ticker), None)
+        if asset_match:
+            bsym = asset_match["bingx_sym"]
+            if bsym not in syms_vivos:
+                print(f"🔔 [CIERRE DETECTADO EN BINGX] {ticker} ya no figura abierta en BingX.")
+                del posiciones[ticker]
+                guardar_estado(estado)
 
 def calcular_indicadores_locales(csv_path):
     if not os.path.exists(csv_path): return None
