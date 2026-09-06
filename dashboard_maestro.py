@@ -441,7 +441,7 @@ def cargar_informadores_diarios():
         except Exception:
             pass
     return {
-        "ultima_actualizacion": datetime.datetime.now().isoformat(),
+        "ultima_actualizacion": datetime.now().isoformat(),
         "ballenas_flujo_7d": 12652,
         "reservas_exchanges": 2160437,
         "suministro_iliquido_pct": 74.08,
