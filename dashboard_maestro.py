@@ -969,6 +969,23 @@ else:
     sem_sub = "Sobreextendido o en zona de techos. Prohibido comprar en FOMO."
 
 # ═══════════════════════════════════════════════════════════════════════════
+# BARRA DE CONTROL GLOBAL & ACTUALIZADOR EN VIVO
+# ═══════════════════════════════════════════════════════════════════════════
+hdr_col1, hdr_col2 = st.columns([3, 1])
+with hdr_col1:
+    st.markdown(f"""
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+        <span style="font-size:1.4rem; font-weight:900; color:#f8fafc;">🏛️ CAZADOR PRO — CUARTEL GENERAL UNIFICADO</span>
+        <span style="background:rgba(34,197,94,0.2); color:#22c55e; border:1px solid #22c55e; padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:800;">⚡ PUERTO 8500 ACTIVO</span>
+        <span style="color:#94a3b8; font-size:0.8rem;">Hora VET: <strong>{now_vet().strftime('%H:%M:%S')}</strong></span>
+    </div>
+    """, unsafe_allow_html=True)
+with hdr_col2:
+    if st.button("🔄 ACTUALIZAR EN VIVO AHORA", use_container_width=True, type="primary"):
+        st.cache_data.clear()
+        st.rerun()
+
+# ═══════════════════════════════════════════════════════════════════════════
 # PESTAÑAS PRINCIPALES (DECLARACIÓN ÚNICA)
 # ═══════════════════════════════════════════════════════════════════════════
 tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
@@ -979,7 +996,7 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "🧪 ESCALERA DE METAS & LAB QUANT",
     "⚙️ CONTROL & TELEMETRÍA CEREBROS",
     "🔥 INSPECTOR TÁCTICO & MAPA DE CALOR",
-    "🎯 ACTIVOS DE ÉLITE CONFLUENCIA (SCORE ≥ 88)"
+    "🎯 ACTIVOS DE ÉLITE CONFLUENCIA (SCORE QUANT ≥ 80)"
 ])
 
 # ══════════════════════════════════════════════════════════════════
@@ -3736,11 +3753,17 @@ with tab7:
             "tipo_mercado": "CRIPTO"
         })
 
-    opcion_modo_tab7 = st.radio(
-        "Modo de Visualización:",
-        ["🔍 INSPECTOR TÁCTICO POR ACTIVO (DEEP DIVE)", "🧱 MATRIZ TÉRMICA & MAPA DE CALOR (TODOS LOS PARES)"],
-        horizontal=True
-    )
+    c_t7_mode, c_t7_ref = st.columns([3, 1])
+    with c_t7_mode:
+        opcion_modo_tab7 = st.radio(
+            "Modo de Visualización:",
+            ["🔍 INSPECTOR TÁCTICO POR ACTIVO (DEEP DIVE)", "🧱 MATRIZ TÉRMICA & MAPA DE CALOR (TODOS LOS PARES)"],
+            horizontal=True
+        )
+    with c_t7_ref:
+        if st.button("🔄 Refrescar Mapa de Calor", key="btn_refresh_t7", use_container_width=True, type="primary"):
+            st.cache_data.clear()
+            st.rerun()
     st.markdown("<br>", unsafe_allow_html=True)
 
     @st.cache_data(ttl=120)
@@ -3841,30 +3864,49 @@ with tab7:
             dist_ema200_pct = clean_num(((p_live - ema200) / (ema200 + 1e-9)) * 100.0, 0.0)
             pos_range_pct = clean_num(((p_live - min_90d) / ((max_90d - min_90d) + 1e-9)) * 100.0, 50.0)
 
-            # Score Térmico Ponderado (0 - 100)
+            # Score Térmico Ponderado (0 - 100): Mide la temperatura del activo (0 = Congelado/Suelo, 100 = Hirviendo/Techo)
             heat_score = (rsi * 0.40) + (pos_range_pct * 0.40) + (max(0.0, min(100.0, (dist_ema55_pct + 20.0) * 2.5)) * 0.20)
             heat_score = clean_num(max(0.0, min(100.0, heat_score)), 50.0)
 
-            if heat_score >= 70.0 or rsi >= 66.0:
+            # Score de Convicción Cuántica Bidireccional (0 a 100):
+            # Premiar tanto Techos Claros (Short) como Suelos Claros (Long)
+            is_oversold = (heat_score <= 35.0 or rsi <= 35.0 or dist_ema55_pct <= -5.0)
+            is_overbought = (heat_score >= 68.0 or rsi >= 65.0 or dist_ema55_pct >= 6.0)
+
+            if is_oversold:
+                # Cuanto más bajo el RSI y más cerca del piso, MAYOR es la convicción de Compra / Suelo
+                dist_suelo = max(0.0, 50.0 - heat_score)
+                rsi_suelo = max(0.0, 50.0 - rsi)
+                conviccion_score = min(99.0, 60.0 + (dist_suelo * 0.8) + (rsi_suelo * 0.6))
+                direccion_tactica = "LONG"
+                estado = "🧊 SOBREVENTA / SUELO"
+                recomendacion = "🟢 ZONA COMPRA LONG / SUELO"
+                color_code = "#38bdf8"
+                badge_css = "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
+            elif is_overbought:
+                # Cuanto más alto el RSI y más sobreextendido, MAYOR es la convicción de Venta / Short
+                dist_techo = max(0.0, heat_score - 50.0)
+                rsi_techo = max(0.0, rsi - 50.0)
+                conviccion_score = min(99.0, 60.0 + (dist_techo * 0.8) + (rsi_techo * 0.6))
+                direccion_tactica = "SHORT"
                 estado = "🔥 SOBRECOMPRA EXTREMA"
                 recomendacion = "🔴 ZONA TÁCTICA SHORT / RESISTENCIA"
                 color_code = "#ef4444"
                 badge_css = "background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444;"
             elif heat_score >= 54.0:
+                conviccion_score = 45.0 + (heat_score - 50.0)
+                direccion_tactica = "NEUTRO"
                 estado = "🟠 CALIENTE / MOMENTUM"
                 recomendacion = "🟡 MANTENER / HODL TÁCTICO"
                 color_code = "#f97316"
                 badge_css = "background:rgba(249,115,22,0.2); color:#f97316; border:1px solid #f97316;"
-            elif heat_score >= 40.0:
+            else:
+                conviccion_score = 45.0 + (50.0 - heat_score)
+                direccion_tactica = "NEUTRO"
                 estado = "🟡 NEUTRO / EQUILIBRIO"
                 recomendacion = "💤 ESPERAR CONFIRMACIÓN"
                 color_code = "#eab308"
                 badge_css = "background:rgba(234,179,8,0.2); color:#eab308; border:1px solid #eab308;"
-            else:
-                estado = "🧊 SOBREVENTA / SUELO"
-                recomendacion = "🟢 ZONA COMPRA LONG / SUELO"
-                color_code = "#38bdf8"
-                badge_css = "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
 
             # Estado de adopción
             adopcion = "🟢 OPERADO POR BOT (CEREBRO 5/6)"
@@ -3894,6 +3936,8 @@ with tab7:
                 "min_90d": round(min_90d, 2),
                 "pos_range_pct": round(pos_range_pct, 1),
                 "heat_score": round(heat_score, 1),
+                "conviccion_score": round(conviccion_score, 1),
+                "direccion_tactica": direccion_tactica,
                 "estado": estado,
                 "recomendacion": recomendacion,
                 "color_code": color_code,
@@ -4230,38 +4274,41 @@ with tab7:
 # TAB 8 — ACTIVOS DE ÉLITE (SCORE DE CONVICCIÓN ≥ 88 PTS)
 # ══════════════════════════════════════════════════════════════════
 with tab8:
-    st.markdown("""
-    <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(15,23,42,0.95)); border: 2px solid #eab308; border-radius: 18px; padding: 22px; margin-bottom: 24px; box-shadow: 0 0 25px rgba(234,179,8,0.25);">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-            <div>
-                <span style="background:rgba(234,179,8,0.25); color:#eab308; padding:4px 12px; border-radius:20px; font-size:0.85rem; font-weight:800; border:1px solid rgba(234,179,8,0.5);">🎯 PANEL DE ALTA CONVICCIÓN QUANT</span>
-                <h2 style="margin: 6px 0 0 0; font-size: 1.85rem; font-weight: 800; color: #f8fafc;">
-                    ACTIVOS DE ÉLITE (SCORE ≥ 88 PTS)
-                </h2>
-                <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.95rem;">
-                    Matriz Térmica & Fichas Tácticas Operativas para Oportunidades Clave (Sobrecompra Extrema 🔴 SHORT / Suelos 🟢 LONG)
-                </p>
-            </div>
-            <div>
-                <span class="badge-gold">⚡ SELECCIÓN AUTOMÁTICA EN VIVO</span>
-            </div>
+    c_t8_a, c_t8_b = st.columns([3, 1])
+    with c_t8_a:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(15,23,42,0.95)); border: 2px solid #eab308; border-radius: 18px; padding: 18px; margin-bottom: 16px; box-shadow: 0 0 25px rgba(234,179,8,0.25);">
+            <span style="background:rgba(234,179,8,0.25); color:#eab308; padding:4px 12px; border-radius:20px; font-size:0.85rem; font-weight:800; border:1px solid rgba(234,179,8,0.5);">🎯 PANEL DE ALTA CONVICCIÓN QUANT</span>
+            <h2 style="margin: 6px 0 0 0; font-size: 1.85rem; font-weight: 800; color: #f8fafc;">
+                ACTIVOS DE ÉLITE (SCORE CONVICCIÓN QUANT ≥ 80 PTS)
+            </h2>
+            <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.95rem;">
+                Matriz Térmica & Fichas Tácticas Operativas para Oportunidades Clave (Sobrecompra Extrema 🔴 SHORT / Suelos 🟢 LONG)
+            </p>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    with c_t8_b:
+        if st.button("🔄 Refrescar Precios Élite", key="btn_refresh_t8", use_container_width=True, type="primary"):
+            st.cache_data.clear()
+            st.rerun()
 
     raw_heat = procesar_mapa_de_calor_total()
-    elite_assets = [item for item in raw_heat if item["heat_score"] >= 88.0 or item["rsi"] >= 75.0 or item["rsi"] <= 28.0]
+    elite_assets = [item for item in raw_heat if item.get("conviccion_score", 0) >= 80.0 or item["heat_score"] >= 85.0 or item["rsi"] >= 72.0 or item["rsi"] <= 30.0]
     
+    # Ordenar de mayor a menor convicción cuántica
+    elite_assets.sort(key=lambda x: x.get("conviccion_score", x.get("heat_score", 0)), reverse=True)
+
     if not elite_assets and raw_heat:
-        sorted_by_ext = sorted(raw_heat, key=lambda x: abs(x["heat_score"] - 50.0), reverse=True)
+        sorted_by_ext = sorted(raw_heat, key=lambda x: x.get("conviccion_score", 0), reverse=True)
         elite_assets = sorted_by_ext[:6]
 
-    st.markdown(f"### 🏆 {len(elite_assets)} ACTIVOS DESTACADOS CON SCORE DE CONVICCIÓN EXTREMA")
+    st.markdown(f"### 🏆 {len(elite_assets)} ACTIVOS DESTACADOS CON SCORE DE CONVICCIÓN QUANT (≥ 80 PTS)")
+    st.markdown("Oportunidades de **Máxima Probabilidad Matemática** seleccionadas en vivo (Suelos Extremos 🟢 LONG y Techos Extremos 🔴 SHORT):")
     st.markdown("<br>", unsafe_allow_html=True)
 
     # 1. MATRIZ TÉRMICA ÉLITE (GRILLA DE INTENSIDAD TÉRMICA)
-    st.markdown("### 🧱 Matriz Térmica Élite & Densidad de Liquidez (Activos ≥ 88 Pts)")
-    st.markdown("Visión panorámica de intensidad térmica de los activos de mayor convicción del ecosistema:")
+    st.markdown("### 🧱 Matriz Cuántica Élite (Activos con Mayor Convicción)")
+    st.markdown("Visión panorámica de activos en extremos estadísticos (Piso Institucional o Techo de Resistencia):")
     
     matrix_cols = st.columns(3)
     for idx, item in enumerate(elite_assets):
@@ -4272,6 +4319,7 @@ with tab8:
             ema55_fmt = f"${item['ema55']:,.4f}" if item['ema55'] < 1.0 else (f"${item['ema55']:,.2f}" if item['ema55'] < 1000.0 else f"${item['ema55']:,.0f}")
             
             dist_color = "#ef4444" if item["dist_ema55_pct"] > 5.0 else ("#22c55e" if item["dist_ema55_pct"] < 0.0 else "#eab308")
+            c_score = item.get("conviccion_score", item["heat_score"])
 
             st.markdown(f"""<div style="background: rgba(15,23,42,0.95); border: 2px solid {item['color_code']}; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
@@ -4291,7 +4339,7 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
 </div>
 <div style="background: rgba(30,41,59,0.8); padding: 8px; border-radius: 8px; margin-bottom: 8px;">
 <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:#cbd5e1; margin-bottom: 4px;">
-<span>🔥 Score Élite: <strong>{item['heat_score']}/100</strong></span>
+<span>🎯 Convicción: <strong style="color:{item['color_code']};">{c_score}/100</strong></span>
 <span>📊 RSI 1D: <strong>{item['rsi']} pts</strong></span>
 </div>
 <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8;">
@@ -4313,17 +4361,15 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
             p_val = asset["precio"]
             p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
             ema9_fmt = f"${asset['ema9']:,.4f}" if asset['ema9'] < 1.0 else (f"${asset['ema9']:,.2f}" if asset['ema9'] < 1000.0 else f"${asset['ema9']:,.0f}")
-            p_val = asset["precio"]
-            p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
-            ema9_fmt = f"${asset['ema9']:,.4f}" if asset['ema9'] < 1.0 else (f"${asset['ema9']:,.2f}" if asset['ema9'] < 1000.0 else f"${asset['ema9']:,.0f}")
             ema21_fmt = f"${asset['ema21']:,.4f}" if asset['ema21'] < 1.0 else (f"${asset['ema21']:,.2f}" if asset['ema21'] < 1000.0 else f"${asset['ema21']:,.0f}")
             ema55_fmt = f"${asset['ema55']:,.4f}" if asset['ema55'] < 1.0 else (f"${asset['ema55']:,.2f}" if asset['ema55'] < 1000.0 else f"${asset['ema55']:,.0f}")
             
-            is_short = asset["heat_score"] >= 70.0 or asset["rsi"] >= 65.0
+            is_short = asset.get("direccion_tactica") == "SHORT" or asset["heat_score"] >= 70.0 or asset["rsi"] >= 65.0
             card_border = "#ef4444" if is_short else "#38bdf8"
             dir_badge = "🔴 OPORTUNIDAD SHORT EN TECHO" if is_short else "🟢 OPORTUNIDAD LONG EN SUELO"
             dir_bg = "background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444;" if is_short else "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
-            
+            c_score = asset.get("conviccion_score", asset["heat_score"])
+
             if is_short:
                 entry_p = round(max(p_val, (p_val + asset['ema9']) / 2.0), 2)
                 sl_p = round(entry_p + (1.5 * asset['atr14']), 2)
@@ -4337,7 +4383,7 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
                 tp1_p = round(entry_p + (2.0 * asset['atr14']), 2)
                 tp2_p = round(entry_p + (3.8 * asset['atr14']), 2)
                 rr = round((tp1_p - entry_p) / max(0.01, entry_p - sl_p), 2)
-                plan_title = "🟢 ESTRATEGIA OPERATIVA: LONG EN PISO"
+                plan_title = "🟢 ESTRATEGIA OPERATIVA: LONG EN PISO (COMPRA EN DESCUENTO)"
 
             st.markdown(f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.92)); border: 2px solid {card_border}; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.6);">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -4353,8 +4399,8 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
 
 <div style="background:rgba(30,41,59,0.8); border-radius:12px; padding:12px; margin-bottom:14px; display:flex; justify-content:space-around; text-align:center;">
 <div>
-<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">SCORE CONVICCIÓN</div>
-<div style="font-size:1.3rem; font-weight:900; color:{card_border};">{asset['heat_score']}/100</div>
+<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">SCORE CONVICCIÓN QUANT</div>
+<div style="font-size:1.3rem; font-weight:900; color:{card_border};">{c_score}/100</div>
 </div>
 <div>
 <div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">RSI DIARIO</div>

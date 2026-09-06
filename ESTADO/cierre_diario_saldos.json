@@ -54,14 +54,14 @@
         },
         {
             "fecha": "2026-09-06",
-            "binance_usd": 267.2,
+            "binance_usd": 267.76,
             "bingx_usd": 550.0,
-            "total_usd": 817.2,
+            "total_usd": 817.76,
             "total_inicio_dia": 793.25,
             "target_1pct_usd": 801.18,
-            "pnl_diario_usd": 23.95,
-            "pnl_diario_pct": 3.02,
-            "pnl_binance_usd": 3.95,
+            "pnl_diario_usd": 24.51,
+            "pnl_diario_pct": 3.09,
+            "pnl_binance_usd": 4.51,
             "pnl_bingx_usd": 20.0,
             "meta_alcanzada": true
         }

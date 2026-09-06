@@ -35,7 +35,7 @@ while true; do
         if ! pgrep -f "cazador_mega_agente_autonomo.py" > /dev/null; then
             echo "[$(date)] ⚠️ Cerebro 4 Autónomo caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
             cd "$DIR_SEPTIEMBRE/AUTONOMO"
-            nohup "$VENV/python3" "$DIR_SEPTIEMBRE/AUTONOMO/cazador_mega_agente_autonomo.py" >> "$DIR_SEPTIEMBRE/AUTONOMO/mega_agente_adn.log" 2>&1 &
+            # disabled >> "$DIR_SEPTIEMBRE/AUTONOMO/mega_agente_adn.log" 2>&1 &
             cd "$DIR_SEPTIEMBRE"
         fi
 
