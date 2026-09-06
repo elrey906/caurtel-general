@@ -32,11 +32,10 @@ while true; do
         #     cd "$DIR_SEPTIEMBRE"
         # fi
 
-        # Cerebro 4: Mega-Agente Autónomo - APAGADO
+        # Cerebro 4: Mega-Agente Autónomo - APAGADO (Modo Fantasma por defecto)
         # if ! pgrep -f "cazador_mega_agente_autonomo.py" > /dev/null; then
         #     echo "[$(date)] ⚠️ Cerebro 4 Autónomo caído. Reviviendo..." >> "$LOG_DIR/guardian.log"
-        #     cd "$DIR_SEPTIEMBRE/AUTONOMO"
-        #     cd "$DIR_SEPTIEMBRE"
+        #     nohup "$VENV/python3" "$DIR_SEPTIEMBRE/AUTONOMO/cazador_mega_agente_autonomo.py" >> "$DIR_SEPTIEMBRE/AUTONOMO/mega_agente_adn.log" 2>&1 &
         # fi
 
         # Dashboard Maestro (8500)

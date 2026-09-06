@@ -503,11 +503,19 @@ def verificar_estado_detallado_cerebros():
                 last_heartbeat = st_data.get("ultima_actualizacion", st_data.get("last_contribution_date", "Activo"))
                 if "T" in str(last_heartbeat):
                     last_heartbeat = str(last_heartbeat).split(".")[0].replace("T", " ")
-                pos_act = st_data.get("posiciones_activas", st_data.get("posiciones", {}))
-                if isinstance(pos_act, dict):
-                    posiciones_count = len(pos_act)
-                elif isinstance(pos_act, list):
-                    posiciones_count = len(pos_act)
+                
+                # Soportar Cerebro 4 (fase1_rapidas_activas + fase2_macro_activas) y otros cerebros
+                if "fase1_rapidas_activas" in st_data or "fase2_macro_activas" in st_data:
+                    f1_len = len(st_data.get("fase1_rapidas_activas", {}))
+                    f2_len = len(st_data.get("fase2_macro_activas", {}))
+                    bin_len = len(st_data.get("binance_btc_balas", []))
+                    posiciones_count = f1_len + f2_len + bin_len
+                else:
+                    pos_act = st_data.get("posiciones_activas", st_data.get("posiciones", {}))
+                    if isinstance(pos_act, dict):
+                        posiciones_count = len(pos_act)
+                    elif isinstance(pos_act, list):
+                        posiciones_count = len(pos_act)
                 
                 bingx_live = st_data.get("bloqueo_anti_desmadre", {}).get("posiciones_bingx_live", [])
                 if bingx_live and len(bingx_live) > posiciones_count:
@@ -1197,7 +1205,7 @@ with hdr_col2:
 # ═══════════════════════════════════════════════════════════════════════════
 # PESTAÑAS PRINCIPALES (DECLARACIÓN ÚNICA)
 # ═══════════════════════════════════════════════════════════════════════════
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8, tab9 = st.tabs([
     "🏛️ ESTADO GENERAL & METAS PASO A PASO",
     "⚔️ COCKPIT TÁCTICO MANUAL (11 STOCKS + BTC)",
     "₿ MEGA HÍBRIDO QUANTUM BTC (BINANCE 5X)",
@@ -1205,7 +1213,8 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
     "🧪 ESCALERA DE METAS & LAB QUANT",
     "⚙️ CONTROL & TELEMETRÍA CEREBROS",
     "🔥 INSPECTOR TÁCTICO & MAPA DE CALOR",
-    "🎯 ACTIVOS DE ÉLITE CONFLUENCIA (SCORE QUANT ≥ 80)"
+    "🎯 ACTIVOS DE ÉLITE CONFLUENCIA (SCORE QUANT ≥ 80)",
+    "🧬 CEREBRO 4: RECOMENDACIONES FANTASMA (PILOTO ADN)"
 ])
 
 # ══════════════════════════════════════════════════════════════════
@@ -4628,6 +4637,170 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
 
     st.markdown("---")
     st.caption("*Panel de Activos de Élite (Score ≥ 88 Pts) · Cazador PRO · Puerto 8500*")
+
+# ══════════════════════════════════════════════════════════════════
+# TAB 9 — CEREBRO 4: RECOMENDACIONES FANTASMA (PILOTO ADN AUTÓNOMO)
+# ══════════════════════════════════════════════════════════════════
+with tab9:
+    c4_header_col1, c4_header_col2 = st.columns([3, 1])
+    with c4_header_col1:
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, rgba(56,189,248,0.2), rgba(15,23,42,0.95)); border: 2px solid #38bdf8; border-radius: 18px; padding: 18px; margin-bottom: 16px; box-shadow: 0 0 25px rgba(56,189,248,0.25);">
+            <span style="background:rgba(56,189,248,0.25); color:#38bdf8; padding:4px 12px; border-radius:20px; font-size:0.85rem; font-weight:800; border:1px solid rgba(56,189,248,0.5);">🧬 CEREBRO 4 · PILOTO ADN AUTÓNOMO</span>
+            <h2 style="margin: 6px 0 0 0; font-size: 1.85rem; font-weight: 900; color: #f8fafc;">
+                FICHAS DE RECOMENDACIÓN FANTASMA & CONTROL MANUAL
+            </h2>
+            <p style="margin: 6px 0 0 0; color: #94a3b8; font-size: 0.95rem;">
+                Todas las recomendaciones operan por defecto en <b>Modo Fantasma 👻 (100% Simulado)</b> con alerta instantánea a Telegram. Pulsa <b>'🟢 Pasar a REAL'</b> para ejecutar en BingX con validación de riesgo.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with c4_header_col2:
+        if st.button("🔄 Refrescar Cerebro 4", key="btn_refresh_c4_tab", use_container_width=True, type="primary"):
+            st.rerun()
+
+    c4_estado_file = os.path.join(BASE_DIR, "AUTONOMO", "estado_mega_agente.json")
+    st_c4 = cargar_json(c4_estado_file, {
+        "fase1_rapidas_activas": {}, "fase2_macro_activas": {},
+        "candado_cooldown_senales": {}, "radar_top3_fase1": [], "radar_top3_fase2": []
+    })
+
+    try:
+        from AUTONOMO.conector_exchanges import bingx_ejecutar_promocion_real as c4_promover_real, bingx_obtener_precio as c4_bingx_px
+    except Exception:
+        try:
+            sys.path.insert(0, os.path.join(BASE_DIR, "AUTONOMO"))
+            from conector_exchanges import bingx_ejecutar_promocion_real as c4_promover_real, bingx_obtener_precio as c4_bingx_px
+        except Exception:
+            def c4_promover_real(*args, **kwargs): return {"ok": False, "msg": "Error importando conector"}
+            def c4_bingx_px(sym): return None
+
+    # Columnas de Fase 1 (Altcoins) y Fase 2 (Wall Street)
+    c4_col_f1, c4_col_f2 = st.columns(2)
+
+    def render_ficha_c4(pos, sym, fase_key, idx):
+        es_real = pos.get("modo_ejecucion") == "REAL"
+        px_live = c4_bingx_px(pos["bingx_sym"]) or pos.get("entry_px", 0.0)
+        entry_px = pos.get("entry_px", px_live)
+        qty = pos.get("qty_tokens", 0.0)
+        pnl_usd = (px_live - entry_px) * qty if entry_px > 0 else 0.0
+        pnl_pct = ((px_live - entry_px) / entry_px) * 100.0 if entry_px > 0 else 0.0
+        color_pnl = "#22c55e" if pnl_usd >= 0 else "#ef4444"
+        signo = "+" if pnl_usd >= 0 else ""
+        horas = (time.time() - pos.get("ts_entry", time.time())) / 3600.0
+
+        card_border = "#22c55e" if es_real else "#38bdf8"
+        badge_html = "<span style='background:rgba(34,197,94,0.2); color:#22c55e; border:1px solid #22c55e; padding:3px 8px; border-radius:6px; font-weight:800; font-size:0.75rem;'>🟢 REAL BINGX</span>" if es_real else "<span style='background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8; padding:3px 8px; border-radius:6px; font-weight:800; font-size:0.75rem;'>👻 MODO FANTASMA</span>"
+
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.92)); border: 2px solid {card_border}; border-radius: 16px; padding: 18px; margin-bottom: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                <div>
+                    <strong style="color:#f8fafc; font-size:1.3rem; font-weight:900;">{sym} (LONG)</strong>
+                    <span style="margin-left:8px;">{badge_html}</span>
+                </div>
+                <span style="font-size:0.82rem; color:#94a3b8; font-weight:700;">Ranura #{idx+1}/3</span>
+            </div>
+            <div style="background:rgba(30,41,59,0.7); border-radius:10px; padding:10px; margin-bottom:12px; font-size:0.88rem; color:#cbd5e1; line-height:1.6;">
+                • <b>Entrada:</b> ${entry_px:,.4f if entry_px<1 else f'{entry_px:,.2f}'} | <b>Precio Actual:</b> ${px_live:,.4f if px_live<1 else f'{px_live:,.2f}'}<br>
+                • <b>🎯 Take Profit:</b> ${pos.get('tp_px', 0):,.4f if pos.get('tp_px',0)<1 else f"{pos.get('tp_px', 0):,.2f}"}<br>
+                • <b>🛑 Stop Loss:</b> ${pos.get('sl_px', 0):,.4f if pos.get('sl_px',0)<1 else f"{pos.get('sl_px', 0):,.2f}"}<br>
+                • <b>Lote Nominal:</b> {qty} contratos ($10 USD @ 10X)<br>
+                • <b>PnL en Vivo:</b> <strong style="color:{color_pnl}; font-size:1.0rem;">{signo}${pnl_usd:,.2f} USD ({signo}{pnl_pct:.2f}%)</strong><br>
+                • <b>Tiempo Activo:</b> {horas:.1f} horas
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        c_act1, c_act2 = st.columns(2)
+        with c_act1:
+            if not es_real:
+                if st.button(f"🟢 Pasar a REAL", key=f"btn_c4_m_real_{fase_key}_{sym}", use_container_width=True, type="primary"):
+                    with st.spinner(f"Verificando y ejecutando {sym} en BingX..."):
+                        r_promo = c4_promover_real(
+                            sym=sym, bingx_sym=pos["bingx_sym"], side=pos.get("side", "LONG"),
+                            qty=pos.get("qty_tokens", 0.0), tp_px=pos.get("tp_px", 0.0),
+                            sl_px=pos.get("sl_px", 0.0), leverage=pos.get("leverage", 10)
+                        )
+                        if r_promo.get("ok"):
+                            st_c4[fase_key][sym]["modo_ejecucion"] = "REAL"
+                            st_c4[fase_key][sym]["order_id_real"] = r_promo.get("order_id")
+                            guardar_json(c4_estado_file, st_c4)
+                            st.toast(f"🚀 {sym} promovido a REAL con éxito en BingX!", icon="✅")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {r_promo.get('msg')}")
+            else:
+                st.success("🟢 Posición Real Activa en BingX")
+        with c_act2:
+            if st.button(f"❌ Descartar", key=f"btn_c4_m_disc_{fase_key}_{sym}", use_container_width=True):
+                del st_c4[fase_key][sym]
+                guardar_json(c4_estado_file, st_c4)
+                st.toast(f"🗑️ {sym} archivado", icon="🗑️")
+                time.sleep(0.5)
+                st.rerun()
+
+    # ── FASE 1: ALTCOINS ──────────────────────────────────────────────
+    with c4_col_f1:
+        st.markdown("### ⚡ Fase 1: Altcoins Rápidas (Máx 3)")
+        st.caption("Validación Cuántica 48h · Modo Fantasma Activo")
+        pos_f1_c4 = st_c4.get("fase1_rapidas_activas", {})
+        syms_f1_c4 = list(pos_f1_c4.keys())
+        for i in range(3):
+            if i < len(syms_f1_c4):
+                sym = syms_f1_c4[i]
+                render_ficha_c4(pos_f1_c4[sym], sym, "fase1_rapidas_activas", i)
+            else:
+                st.markdown(f"""
+                <div style="border:1px dashed #64748b; background:rgba(15,23,42,0.4); border-radius:12px; padding:16px; margin-bottom:12px; text-align:center;">
+                    <span style="color:#64748b;">⚪ Ranura #{i+1} Disponible (Escaneando Altcoins)</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # ── FASE 2: WALL STREET ───────────────────────────────────────────
+    with c4_col_f2:
+        st.markdown("### 🏛️ Fase 2: Wall Street Macro (Máx 3)")
+        st.caption("Acciones US · Límite 25 Días · Checkpoint Día 10")
+        pos_f2_c4 = st_c4.get("fase2_macro_activas", {})
+        syms_f2_c4 = list(pos_f2_c4.keys())
+        for i in range(3):
+            if i < len(syms_f2_c4):
+                sym = syms_f2_c4[i]
+                render_ficha_c4(pos_f2_c4[sym], sym, "fase2_macro_activas", i)
+            else:
+                st.markdown(f"""
+                <div style="border:1px dashed #64748b; background:rgba(15,23,42,0.4); border-radius:12px; padding:16px; margin-bottom:12px; text-align:center;">
+                    <span style="color:#64748b;">⚪ Ranura #{i+1} Disponible (Escaneando Wall Street)</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+    st.markdown("---")
+    # ── CANDADOS ACTIVOS ANTI-BUCLE ───────────────────────────────────
+    st.subheader("🛡️ Candados Activos de Cooldown Anti-Bucle (Cerebro 4)")
+    st.caption("Garantía de nivel bancario: Ningún activo puede disparar señales repetidas en menos de 6 horas.")
+    
+    now_ts_c4 = time.time()
+    candados_c4 = st_c4.get("candado_cooldown_senales", {})
+    bloqueados_list = []
+    for sym_c, info_c in candados_c4.items():
+        exp = info_c.get("expira", 0.0)
+        if now_ts_c4 < exp:
+            mins = int((exp - now_ts_c4) / 60)
+            bloqueados_list.append({
+                "Activo": sym_c,
+                "Motivo": info_c.get("motivo", "Cooldown Señal"),
+                "Tiempo Restante": f"{mins} min ({mins/60:.1f}h)",
+                "Estado": "🔒 Protección Anti-Bucle Activa"
+            })
+    if bloqueados_list:
+        st.dataframe(pd.DataFrame(bloqueados_list), use_container_width=True, hide_index=True)
+    else:
+        st.info("🟢 No hay activos bloqueados en cooldown actualmente.")
+
+    st.markdown("---")
+    st.caption("*Cerebro 4: Mega-Agente ADN Cuántico · Sala de Mando Maestro · Puerto 8500*")
+
 
 
 

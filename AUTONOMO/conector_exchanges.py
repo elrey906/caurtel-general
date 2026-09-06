@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 """
 CONECTOR SEGURO MULTI-EXCHANGE (BINGX HEDGE & BINANCE CROSS MARGIN)
-Blindajes:
-1. Precisión estricta de cantidad (tokens/contratos según step_qty y min_qty).
-2. clientOrderId único determinista para evitar duplicación ante reintentos/timeouts.
-3. User-Agent, firma HMAC SHA256 y manejo de excepciones de red con fallback.
-4. Consulta de posiciones vivas filtrando por clientOrderId o prefijo para NO tocar otros cerebros.
+Blindajes de Nivel Bancario:
+1. Circuit Breaker & Resiliencia: La caída de API nunca borra estados locales ni dispara bucles.
+2. Precisión estricta de cantidad (tokens/contratos según step_qty y min_qty).
+3. clientOrderId único determinista para evitar duplicación ante reintentos/timeouts.
+4. Modo Fantasma por Defecto: Bloqueo de órdenes automáticas; solo se ejecutan órdenes reales por acción manual explícita.
+5. Regla Sagrada MSFT: El SHORT de MSFT nunca se toca ni se cierra.
 """
 import os, sys, time, json, datetime, hmac, hashlib, math, requests, logging
 from dotenv import load_dotenv
@@ -23,6 +24,10 @@ BINANCE_KEY = os.getenv("BINANCE_API_KEY", "")
 BINANCE_SECRET = os.getenv("BINANCE_API_SECRET", os.getenv("BINANCE_SECRET_KEY", ""))
 
 HEADERS_STD = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+
+# Variables de Circuit Breaker para BingX
+_CIRCUIT_FAILURES = 0
+_CIRCUIT_PAUSED_UNTIL = 0.0
 
 def ajustar_cantidad_bingx(monto_usd, palanca, precio, step_qty, min_qty):
     """
@@ -43,21 +48,45 @@ def ajustar_cantidad_bingx(monto_usd, palanca, precio, step_qty, min_qty):
 # BINGX API PERPETUOS MODO COBERTURA
 # ══════════════════════════════════════════════════════════════════
 def bingx_request(method, endpoint, params=None):
+    global _CIRCUIT_FAILURES, _CIRCUIT_PAUSED_UNTIL
+    now = time.time()
+
+    if now < _CIRCUIT_PAUSED_UNTIL:
+        logging.getLogger().warning(f"⚡ [CIRCUIT BREAKER BINGX ACTIVO] Pausado por fallos de API hasta {int(_CIRCUIT_PAUSED_UNTIL - now)}s.")
+        return {"code": -995, "msg": "CIRCUIT_BREAKER_ACTIVE"}
+
     if not BINGX_KEY or not BINGX_SECRET:
         return {"code": -1, "msg": "Sin credenciales de BingX"}
+
     params = params.copy() if params else {}
     params["timestamp"] = int(time.time() * 1000)
     query = "&".join([f"{k}={params[k]}" for k in sorted(params.keys())])
     sig = hmac.new(BINGX_SECRET.encode('utf-8'), query.encode('utf-8'), hashlib.sha256).hexdigest()
     url = f"{BINGX_URL}{endpoint}?{query}&signature={sig}"
     headers = {"X-BX-APIKEY": BINGX_KEY, "User-Agent": "Mozilla/5.0"}
+    
     try:
         if method.upper() == "GET":
             r = requests.get(url, headers=headers, timeout=8)
         else:
             r = requests.post(url, headers=headers, timeout=8)
-        return r.json()
+            
+        data = r.json()
+        code = data.get("code")
+        if code == 0:
+            _CIRCUIT_FAILURES = 0 # Reset circuit breaker
+            return data
+        else:
+            _CIRCUIT_FAILURES += 1
+            if _CIRCUIT_FAILURES >= 5:
+                _CIRCUIT_PAUSED_UNTIL = now + 120.0 # Pausar 2 min
+                logging.getLogger().error("🚨 [CIRCUIT BREAKER DISPARADO] 5 fallos consecutivos de BingX API. Pausando 120s.")
+            return data
     except Exception as e:
+        _CIRCUIT_FAILURES += 1
+        if _CIRCUIT_FAILURES >= 5:
+            _CIRCUIT_PAUSED_UNTIL = now + 120.0
+            logging.getLogger().error(f"🚨 [CIRCUIT BREAKER DISPARADO] Excepciones repetidas de BingX: {e}. Pausando 120s.")
         return {"code": -999, "msg": str(e)}
 
 def bingx_obtener_precio(bingx_sym):
@@ -78,21 +107,18 @@ def bingx_establecer_apalancamiento(bingx_sym, leverage=10, side="LONG"):
     }
     return bingx_request("POST", "/openApi/swap/v2/trade/leverage", params)
 
-def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id):
+def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id, es_promocion_manual=False):
     """
-    Abre posición a mercado en BingX en Modo Cobertura con clientOrderId determinista
-    side: 'LONG' o 'SHORT'
-    positionSide: 'LONG' o 'SHORT'
+    Abre posición a mercado en BingX en Modo Cobertura con clientOrderId determinista.
+    es_promocion_manual: True si fue ordenada explícitamente por el usuario desde la UI.
     """
-    pos_side = "LONG" if side.upper() == "BUY" or side.upper() == "LONG" else "SHORT"
+    pos_side = "LONG" if side.upper() in ["BUY", "LONG"] else "SHORT"
     order_side = "BUY" if pos_side == "LONG" else "SELL"
     
-    # 🛡️ CANDADO DE ACERO: FASE 1 (ALTCOINS) ESTÁ 100% PROHIBIDA EN REAL (SOLO PAPER TRADING)
-    f1_alts = ["SOL", "ETH", "NEAR", "SUI", "AVAX", "DOGE"]
-    for alt in f1_alts:
-        if bingx_sym.upper().startswith(alt):
-            logging.getLogger().warning(f"🚫 [CANDADO ACTIVO] Intento de orden real en {bingx_sym} bloqueado: Fase 1 opera exclusivamente en FANTASMA/PAPER TRADING.")
-            return {"code": -997, "msg": "BLOQUEO_FASE1_SOLO_PAPER_TRADING"}
+    # 🛡️ CANDADO DE ACERO: Bloqueo de órdenes automáticas si no es promoción manual
+    if not es_promocion_manual:
+        logging.getLogger().info(f"👻 [MODO FANTASMA ACTIVO] Orden en {bingx_sym} preservada en simulación (Sin envío real).")
+        return {"code": 0, "msg": "EJECUTADO_EN_MODO_FANTASMA_SIMULADO", "clientOrderID": client_order_id}
 
     params = {
         "symbol": bingx_sym,
@@ -107,18 +133,17 @@ def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id):
 def bingx_cerrar_posicion_mercado(bingx_sym, pos_side, qty, client_order_id=None):
     """
     Cierra posición a mercado en BingX modo cobertura
-    Si pos_side era LONG, se envía SELL con positionSide=LONG
     CANDADO DE ACERO: Si el símbolo es MSFT y pos_side es SHORT, ESTÁ ESTRICTAMENTE PROHIBIDO CERRARLA.
     """
     if "MSFT" in str(bingx_sym).upper() and str(pos_side).upper() == "SHORT":
         logging.getLogger().error("⛔ [INTENTO DE CIERRE BLOQUEADO] Regla sagrada: ¡EL SHORT DE MSFT NUNCA SE TOCA NI SE CIERRA!")
         return {"code": -998, "msg": "REGLA_SAGRADA: EL SHORT DE MSFT NO SE TOCA"}
         
-    order_side = "SELL" if pos_side == "LONG" else "BUY"
+    order_side = "SELL" if pos_side.upper() == "LONG" else "BUY"
     params = {
         "symbol": bingx_sym,
         "side": order_side,
-        "positionSide": pos_side,
+        "positionSide": pos_side.upper(),
         "type": "MARKET",
         "quantity": float(qty)
     }
@@ -126,12 +151,78 @@ def bingx_cerrar_posicion_mercado(bingx_sym, pos_side, qty, client_order_id=None
         params["clientOrderID"] = client_order_id
     return bingx_request("POST", "/openApi/swap/v2/trade/order", params)
 
-def bingx_obtener_posiciones_activas():
-    """Retorna las posiciones vivas en BingX"""
+def bingx_obtener_posiciones_seguras():
+    """
+    Retorna una tupla (ok: bool, posiciones: list).
+    ok es True ÚNICAMENTE si la API respondió exitosamente con code == 0.
+    Si hay timeout, error de red o error de API, retorna (False, []).
+    ¡ESTO PREVIENE BORRADOS ERRÓNEOS Y BUCLES INFINITOS!
+    """
     r = bingx_request("GET", "/openApi/swap/v2/user/positions")
-    if r.get("code") == 0 and "data" in r:
-        return r["data"]
-    return []
+    if r.get("code") == 0 and "data" in r and isinstance(r["data"], list):
+        return True, r["data"]
+    return False, []
+
+def bingx_obtener_posiciones_activas():
+    """Retorna las posiciones vivas en BingX (wrapper compatible)"""
+    ok, pos = bingx_obtener_posiciones_seguras()
+    return pos if ok else []
+
+def bingx_ejecutar_promocion_real(sym, bingx_sym, side, qty, tp_px, sl_px, leverage=10):
+    """
+    Ejecuta de forma segura la promoción manual de una recomendación Fantasma a REAL en BingX.
+    Verifica que no exista posición duplicada previa, configura apalancamiento y envía orden a mercado.
+    """
+    try:
+        from notificador_telegram import notificar_promocion_real
+    except ImportError:
+        def notificar_promocion_real(*args, **kwargs): pass
+
+    # 1. Verificar si ya existe posición viva para evitar compras dobles
+    ok, live_pos = bingx_obtener_posiciones_seguras()
+    if ok:
+        for p in live_pos:
+            if p.get("symbol") == bingx_sym and float(p.get("positionAmt", 0)) != 0:
+                p_side = p.get("positionSide", "").upper()
+                if p_side == side.upper():
+                    return {
+                        "ok": False,
+                        "msg": f"Ya existe una posición real abierta en BingX para {sym} en {side}. Promoción abortada para evitar duplicados."
+                    }
+
+    # 2. Configurar apalancamiento
+    bingx_establecer_apalancamiento(bingx_sym, leverage=leverage, side=side)
+
+    # 3. Disparar orden a mercado real
+    cid = f"PROMO_REAL_{sym}_{int(time.time())}"
+    r_ord = bingx_abrir_posicion_mercado(bingx_sym, side, qty, cid, es_promocion_manual=True)
+
+    if r_ord.get("code") == 0:
+        data_ord = r_ord.get("data", {}).get("order", {})
+        order_id = str(data_ord.get("orderId", cid))
+        px_exec = float(data_ord.get("avgPrice", 0.0))
+        if px_exec <= 0:
+            px_exec = bingx_obtener_precio(bingx_sym) or 0.0
+
+        # Notificar a Telegram
+        try:
+            notificar_promocion_real(sym, side, px_exec, qty, tp_px, sl_px, order_id)
+        except Exception as e:
+            logging.getLogger().warning(f"Error notificando promoción a Telegram: {e}")
+
+        return {
+            "ok": True,
+            "order_id": order_id,
+            "client_order_id": cid,
+            "precio_ejecucion": px_exec,
+            "msg": f"Orden de {sym} ({side}) ejecutada exitosamente en BingX."
+        }
+    else:
+        return {
+            "ok": False,
+            "msg": f"Error de BingX ({r_ord.get('code')}): {r_ord.get('msg')}",
+            "code": r_ord.get("code")
+        }
 
 # ══════════════════════════════════════════════════════════════════
 # BINANCE CROSS MARGIN 5X (EXCLUSIVO BITCOIN)
