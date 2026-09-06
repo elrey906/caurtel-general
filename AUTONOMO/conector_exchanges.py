@@ -155,6 +155,7 @@ def binance_margin_account_info():
     s_time = binance_obtener_server_time()
     qs = f"recvWindow=60000&timestamp={s_time}"
     sig = binance_firmar(qs)
+    headers = {"X-MBX-APIKEY": BINANCE_KEY}
     for base in ["https://api3.binance.com", "https://api1.binance.com", "https://api.binance.com"]:
         url = f"{base}/sapi/v1/margin/account?{qs}&signature={sig}"
         try:
