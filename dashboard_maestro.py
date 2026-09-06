@@ -2334,6 +2334,32 @@ with tab2:
             "short_tp1": 41250.0,
             "short_tp2": 39750.0,
             "nota": "Índice cerca de zona alta; riesgo de falso rompimiento. Priorizar shorts tácticos o esperar soporte."
+        },
+        {
+            "sym": "SPCX",
+            "nombre": "Space X (Pre-IPO / AI)",
+            "tipo": "ACCION",
+            "exchange": "BingX Perpetuos",
+            "precio": 150.84,
+            "sop_7d": 133.09,
+            "res_7d": 165.00,
+            "ema55": 142.50,
+            "ema200": 128.00,
+            "ob_dom": "1D Bullish OB $132.00 – $136.50",
+            "rsi": 65.1,
+            "stoch_k": 58.0,
+            "adx": 32.1,
+            "score": 84,
+            "recom": "LONG (Compra Sniper / Impulso)",
+            "long_trigger": 146.50,
+            "long_sl": 135.00,
+            "long_tp1": 165.00,
+            "long_tp2": 190.00,
+            "short_trigger": 168.00,
+            "short_sl": 178.00,
+            "short_tp1": 150.00,
+            "short_tp2": 133.00,
+            "nota": "🚀 ACTIVO DE ÉLITE IA/SPACEX: ADX en 32.1 con fuerte tendencia alcista y MACD acelerando en verde."
         }
     ]
 
@@ -3516,7 +3542,8 @@ with tab7:
         {"nombre": "Broadcom", "ticker": "AVGO", "symbol": "NCSKAVGO2USD-USDT", "csv": "AVGO", "precio_ref": 371.56, "cat": "💻 Acciones Tech"},
         {"nombre": "Coinbase", "ticker": "COIN", "symbol": "NCSKCOINBASE2USD-USDT", "csv": "COIN", "precio_ref": 190.75, "cat": "💻 Acciones Tech"},
         {"nombre": "Invesco QQQ (Nasdaq 100)", "ticker": "QQQ", "symbol": "NCSKQQQ2USD-USDT", "csv": "QQQ", "precio_ref": 710.24, "cat": "🏆 Índices & ETFs"},
-        {"nombre": "S&P 500 Index (SPCX / SPY)", "ticker": "SPY", "symbol": "NCSISP5002USD-USDT", "csv": "^GSPC", "precio_ref": 7679.24, "cat": "🏆 Índices & ETFs"},
+        {"nombre": "Space X (Pre-IPO / AI)", "ticker": "SPCX", "symbol": "SPCX-USDT", "csv": None, "precio_ref": 150.84, "cat": "🚀 Space X / AI Tech"},
+        {"nombre": "S&P 500 Index (SPY / GSPC)", "ticker": "SPY", "symbol": "NCSISP5002USD-USDT", "csv": "^GSPC", "precio_ref": 7679.24, "cat": "🏆 Índices & ETFs"},
         {"nombre": "Dow Jones Industrial", "ticker": "DJI", "symbol": "NCSIDOWJONES2USD-USDT", "csv": "DJI", "precio_ref": 53562.00, "cat": "🏆 Índices & ETFs"},
         {"nombre": "Nubank", "ticker": "NU", "symbol": "NCSKNU2USD-USDT", "csv": "NU", "precio_ref": 15.27, "cat": "💻 Acciones FinTech"},
         {"nombre": "Palantir Technologies", "ticker": "PLTR", "symbol": "NCSKPLTR2USD-USDT", "csv": None, "precio_ref": 58.50, "cat": "💻 Acciones Tech"},
