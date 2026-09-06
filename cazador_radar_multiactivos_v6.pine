@@ -1,0 +1,259 @@
+//@version=6
+indicator("🔥 CAZADOR PRO - RADAR MULTI-ACTIVOS & SCREENER V6", shorttitle="🔥 RADAR_MULTI_V6", overlay=true, precision=2)
+
+// =============================================================================
+// 🔥 ECOSISTEMA CAZADOR PRO — FASE 2: RADAR MULTI-ACTIVOS V6
+// -----------------------------------------------------------------------------
+// Escáner Institucional en Tiempo Real para 8 Activos Simultáneos (Crypto + Wall St).
+// Calcula en paralelo para cada activo:
+// 1. Tendencia EMAs 10/55.
+// 2. Momentum & Aceleración MACD.
+// 3. TTM Squeeze Momentum (Compresión vs Disparo).
+// 4. RSI Dinámico de Impulso.
+// 5. Score Cuántico de Confluencia Institucional (0% a 100%).
+// 6. Estado Operativo y Gatillos Sniper en Vivo.
+// 7. Alertas Globales Unificadas Multi-Activo.
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. CONFIGURACIÓN DE ACTIVOS A ESCANEAR (INPUTS)
+// -----------------------------------------------------------------------------
+grp_assets = "🌐 1. CESTA DE ACTIVOS A ESCANEAR (PERSONALIZABLE)"
+sym_01 = input.symbol("BINANCE:BTCUSDT",  "Activo 1 (Cripto Líder)", group=grp_assets)
+sym_02 = input.symbol("BINANCE:ETHUSDT",  "Activo 2 (Altcoin Líder)", group=grp_assets)
+sym_03 = input.symbol("BINANCE:SOLUSDT",  "Activo 3 (Alta Beta)", group=grp_assets)
+sym_04 = input.symbol("BINANCE:BNBUSDT",  "Activo 4 (Ecosistema)", group=grp_assets)
+sym_05 = input.symbol("NASDAQ:NVDA",      "Activo 5 (Wall St IA)", group=grp_assets)
+sym_06 = input.symbol("NASDAQ:AAPL",      "Activo 6 (Wall St Blue Chip)", group=grp_assets)
+sym_07 = input.symbol("NASDAQ:TSLA",      "Activo 7 (Wall St Volatilidad)", group=grp_assets)
+sym_08 = input.symbol("AMEX:SPY",         "Activo 8 (Índice Macro S&P500)", group=grp_assets)
+
+grp_tf = "⏱️ 2. TEMPORALIDAD DEL RADAR"
+custom_tf = input.timeframe("", "Temporalidad (Vacío = Gráfico Actual)", group=grp_tf)
+
+grp_hud = "🖥️ 3. DISEÑO Y POSICIÓN DEL RADAR"
+hud_pos = input.string("Arriba Derecha", "Posición de la Tabla", options=["Arriba Derecha", "Abajo Derecha", "Arriba Izquierda", "Abajo Izquierda"], group=grp_hud)
+hud_size = input.string("Pequeño", "Tamaño de Texto", options=["Diminuto", "Pequeño", "Normal"], group=grp_hud)
+highlight_best = input.bool(true, "Resaltar Máxima Oportunidad", group=grp_hud)
+
+// -----------------------------------------------------------------------------
+// 2. FUNCIÓN DE CÁLCULO DE CONFLUENCIA POR ACTIVO
+// -----------------------------------------------------------------------------
+f_evaluate_asset() =>
+    // EMAs
+    e10 = ta.ema(close, 10)
+    e55 = ta.ema(close, 55)
+    bull_ema = close > e10 and e10 > e55
+    bear_ema = close < e10 and e10 < e55
+
+    // MACD
+    [m_line, m_sig, m_hist] = ta.macd(close, 12, 26, 9)
+    m_rising = m_hist > m_hist[1]
+    m_falling = m_hist < m_hist[1]
+
+    // DMI & ADX
+    [di_p, di_m, adx_v] = ta.dmi(14, 14)
+    adx_ok = adx_v >= 22
+
+    // RSI
+    r_val = ta.rsi(close, 14)
+
+    // TTM Squeeze
+    bb_b = ta.sma(close, 20)
+    bb_d = 2.0 * ta.stdev(close, 20)
+    kc_m = ta.sma(close, 20)
+    kc_r = ta.atr(20) * 1.5
+    sqz_active = (bb_b - bb_d > kc_m - kc_r) and (bb_b + bb_d < kc_m + kc_r)
+
+    // Puntuación Cuántica
+    int sc_long = 0
+    int sc_short = 0
+
+    // EMA (25 pts)
+    if bull_ema
+        sc_long += 25
+    if bear_ema
+        sc_short += 25
+
+    // MACD (25 pts)
+    if m_hist > 0 and m_rising
+        sc_long += 25
+    else if m_hist > 0
+        sc_long += 12
+
+    if m_hist < 0 and m_falling
+        sc_short += 25
+    else if m_hist < 0
+        sc_short += 12
+
+    // ADX & DMI (25 pts)
+    if di_p > di_m and adx_ok
+        sc_long += 25
+    else if di_p > di_m
+        sc_long += 12
+
+    if di_m > di_p and adx_ok
+        sc_short += 25
+    else if di_m > di_p
+        sc_short += 12
+
+    // RSI (25 pts)
+    if r_val >= 50 and r_val <= 68
+        sc_long += 25
+    else if r_val > 68 and r_val < 78
+        sc_long += 10
+
+    if r_val <= 50 and r_val >= 32
+        sc_short += 25
+    else if r_val < 32 and r_val > 22
+        sc_short += 10
+
+    // Variación %
+    chg = (close - open) / open * 100
+
+    [close, sc_long, sc_short, sqz_active, bull_ema, bear_ema, r_val, chg]
+
+// -----------------------------------------------------------------------------
+// 3. CONSULTA PARALELA DE SEGURIDAD (REQUEST.SECURITY)
+// -----------------------------------------------------------------------------
+target_tf = custom_tf == "" ? timeframe.period : custom_tf
+
+[c01, sl01, ss01, sq01, be01, br01, rsi01, chg01] = request.security(sym_01, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c02, sl02, ss02, sq02, be02, br02, rsi02, chg02] = request.security(sym_02, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c03, sl03, ss03, sq03, be03, br03, rsi03, chg03] = request.security(sym_03, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c04, sl04, ss04, sq04, be04, br04, rsi04, chg04] = request.security(sym_04, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c05, sl05, ss05, sq05, be05, br05, rsi05, chg05] = request.security(sym_05, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c06, sl06, ss06, sq06, be06, br06, rsi06, chg06] = request.security(sym_06, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c07, sl07, ss07, sq07, be07, br07, rsi07, chg07] = request.security(sym_07, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+[c08, sl08, ss08, sq08, be08, br08, rsi08, chg08] = request.security(sym_08, target_tf, f_evaluate_asset(), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+// -----------------------------------------------------------------------------
+// 4. CONSTRUCCIÓN DE LA TABLA RADAR GLASSMORPHISM
+// -----------------------------------------------------------------------------
+var t_pos = position.top_right
+if hud_pos == "Abajo Derecha"
+    t_pos := position.bottom_right
+else if hud_pos == "Arriba Izquierda"
+    t_pos := position.top_left
+else if hud_pos == "Abajo Izquierda"
+    t_pos := position.bottom_left
+
+var cell_sz = size.small
+if hud_size == "Diminuto"
+    cell_sz := size.tiny
+else if hud_size == "Normal"
+    cell_sz := size.normal
+
+// Tabla: 6 columnas x 10 filas
+// Columnas: [ACTIVO, PRECIO, VAR %, TENDENCIA/RSI, SQUEEZE, CONFLUENCIA / ESTADO]
+var table radar = table.new(t_pos, 6, 10, 
+                            bgcolor = color.new(#090d16, 15), 
+                            border_width = 1, 
+                            border_color = color.new(#30363d, 0), 
+                            frame_width = 2, 
+                            frame_color = color.new(#00e5ff, 40))
+
+// Función auxiliar para renderizar fila
+f_render_row(table tbl, int row_idx, string full_sym, float price_val, float chg_val, int score_l, int score_s, bool is_sqz, bool is_bull, float rsi_v) =>
+    // Limpieza de nombre
+    string clean_name = full_sym
+    // Estado y colores
+    string st_text = "⏳ ESPERA"
+    color  st_col  = #8b949e
+    color  st_bg   = color.new(#161b22, 0)
+
+    if score_l >= 75
+        st_text := "🚀 COMPRA PRO (" + str.tostring(score_l) + "%)"
+        st_col  := #00e676
+        st_bg   := color.new(#00c853, 25)
+    else if score_s >= 75
+        st_text := "💥 VENTA PRO (" + str.tostring(score_s) + "%)"
+        st_col  := #ff1744
+        st_bg   := color.new(#d50000, 25)
+    else if is_sqz
+        st_text := "🔒 SQUEEZE"
+        st_col  := #ffab40
+        st_bg   := color.new(#ff6d00, 25)
+    else if score_l >= 50
+        st_text := "📈 ALCISTA (" + str.tostring(score_l) + "%)"
+        st_col  := #00e5ff
+    else if score_s >= 50
+        st_text := "📉 BAJISTA (" + str.tostring(score_s) + "%)"
+        st_col  := #ff9100
+
+    // Tendencia EMA + RSI
+    string ema_rsi_txt = (is_bull ? "🟢 ALC | " : "🔴 BAJ | ") + "RSI " + str.tostring(rsi_v, "#.0")
+    color ema_rsi_col = is_bull ? #00e5ff : #ff9100
+
+    // Squeeze estado
+    string sqz_txt = is_sqz ? "🔒 CARGANDO" : "⚡ LIBRE"
+    color sqz_col = is_sqz ? #ff9100 : #00e676
+
+    // Var % color
+    color chg_col = chg_val >= 0 ? #00e676 : #ff1744
+    string chg_str = (chg_val >= 0 ? "+" : "") + str.tostring(chg_val, "#.2") + "%"
+
+    // Relleno de celdas
+    table.cell(tbl, 0, row_idx, clean_name, bgcolor=color.new(#161b22, 0), text_color=color.white, text_size=cell_sz, text_halign=text.align_left)
+    table.cell(tbl, 1, row_idx, str.tostring(price_val, "#.2"), bgcolor=color.new(#0d1117, 0), text_color=#e6edf3, text_size=cell_sz, text_halign=text.align_right)
+    table.cell(tbl, 2, row_idx, chg_str, bgcolor=color.new(#0d1117, 0), text_color=chg_col, text_size=cell_sz, text_halign=text.align_right)
+    table.cell(tbl, 3, row_idx, ema_rsi_txt, bgcolor=color.new(#0d1117, 0), text_color=ema_rsi_col, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(tbl, 4, row_idx, sqz_txt, bgcolor=color.new(#0d1117, 0), text_color=sqz_col, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(tbl, 5, row_idx, st_text, bgcolor=st_bg, text_color=st_col, text_size=cell_sz, text_halign=text.align_center)
+
+if barstate.islast
+    // Encabezado Principal (Fila 0)
+    table.cell(radar, 0, 0, "🔥 CAZADOR PRO", bgcolor=color.new(#1f242c, 0), text_color=#00e5ff, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 1, 0, "RADAR INSTITUCIONAL", bgcolor=color.new(#1f242c, 0), text_color=#ffffff, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 2, 0, "FASE 2 MULTI-ACTIVOS", bgcolor=color.new(#1f242c, 0), text_color=#ffd600, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 3, 0, "TF: " + (custom_tf == "" ? "CHART" : custom_tf), bgcolor=color.new(#1f242c, 0), text_color=#00e5ff, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 4, 0, "SQUEEZE", bgcolor=color.new(#1f242c, 0), text_color=#ffffff, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 5, 0, "ESTADO / SEÑAL", bgcolor=color.new(#1f242c, 0), text_color=#00e676, text_size=cell_sz, text_halign=text.align_center)
+
+    // Renderizado de Filas 1 a 8
+    f_render_row(radar, 1, "1. BTC",  c01, chg01, sl01, ss01, sq01, be01, rsi01)
+    f_render_row(radar, 2, "2. ETH",  c02, chg02, sl02, ss02, sq02, be02, rsi02)
+    f_render_row(radar, 3, "3. SOL",  c03, chg03, sl03, ss03, sq03, be03, rsi03)
+    f_render_row(radar, 4, "4. BNB",  c04, chg04, sl04, ss04, sq04, be04, rsi04)
+    f_render_row(radar, 5, "5. NVDA", c05, chg05, sl05, ss05, sq05, be05, rsi05)
+    f_render_row(radar, 6, "6. AAPL", c06, chg06, sl06, ss06, sq06, be06, rsi06)
+    f_render_row(radar, 7, "7. TSLA", c07, chg07, sl07, ss07, sq07, be07, rsi07)
+    f_render_row(radar, 8, "8. SPY",  c08, chg08, sl08, ss08, sq08, be08, rsi08)
+
+    // Fila 9: Pie de Telemetría
+    table.cell(radar, 0, 9, "TOTAL 8 ACTIVOS", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 1, 9, "ECOSISTEMA", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 2, 9, "CAZADOR PRO", bgcolor=color.new(#161b22, 0), text_color=#00e5ff, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 3, 9, "CRYPTO + WALL ST", bgcolor=color.new(#161b22, 0), text_color=#ffd600, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 4, 9, "MOTOR CUÁNTICO", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=cell_sz, text_halign=text.align_center)
+    table.cell(radar, 5, 9, "CONFLUENCIA V6", bgcolor=color.new(#161b22, 0), text_color=#00e676, text_size=cell_sz, text_halign=text.align_center)
+
+// -----------------------------------------------------------------------------
+// 5. ALERTAS GLOBALES UNIFICADAS MULTI-ACTIVO
+// -----------------------------------------------------------------------------
+// Alerta si cualquiera de los 8 activos activa señal de compra institucional
+bool global_buy_trigger = (sl01 >= 75 and not (sl01[1] >= 75)) or 
+                          (sl02 >= 75 and not (sl02[1] >= 75)) or 
+                          (sl03 >= 75 and not (sl03[1] >= 75)) or 
+                          (sl04 >= 75 and not (sl04[1] >= 75)) or 
+                          (sl05 >= 75 and not (sl05[1] >= 75)) or 
+                          (sl06 >= 75 and not (sl06[1] >= 75)) or 
+                          (sl07 >= 75 and not (sl07[1] >= 75)) or 
+                          (sl08 >= 75 and not (sl08[1] >= 75))
+
+bool global_sell_trigger = (ss01 >= 75 and not (ss01[1] >= 75)) or 
+                           (ss02 >= 75 and not (ss02[1] >= 75)) or 
+                           (ss03 >= 75 and not (ss03[1] >= 75)) or 
+                           (ss04 >= 75 and not (ss04[1] >= 75)) or 
+                           (ss05 >= 75 and not (ss05[1] >= 75)) or 
+                           (ss06 >= 75 and not (ss06[1] >= 75)) or 
+                           (ss07 >= 75 and not (ss07[1] >= 75)) or 
+                           (ss08 >= 75 and not (ss08[1] >= 75))
+
+alertcondition(global_buy_trigger, 
+               title="🔥 RADAR FASE 2: Gatillo Compra Multi-Activo", 
+               message="🚀 RADAR CAZADOR PRO: ¡Señal de COMPRA INSTITUCIONAL (≥75% Confluencia) detectada en la cesta de activos! Revisa la tabla en pantalla.")
+
+alertcondition(global_sell_trigger, 
+               title="💥 RADAR FASE 2: Gatillo Venta Multi-Activo", 
+               message="💥 RADAR CAZADOR PRO: ¡Señal de VENTA/SHORT INSTITUCIONAL (≥75% Confluencia) detectada en la cesta de activos! Revisa la tabla en pantalla.")

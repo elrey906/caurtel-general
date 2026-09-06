@@ -1,0 +1,380 @@
+//@version=6
+indicator("🔥 CAZADOR PRO - EL COMBO DE LOS 3 INSTITUCIONAL V6", shorttitle="🔥 CAZADOR_COMBO3_PRO_V6", overlay=true, precision=2)
+
+// =============================================================================
+// 🔥 ECOSISTEMA CAZADOR PRO — EL COMBO DE LOS 3 INSTITUCIONAL V6
+// -----------------------------------------------------------------------------
+// Integra:
+// 1. Tendencia y Nube Dinámica EMAs 10 & 55 con Cruces Sniper.
+// 2. Momentum MACD con detección de Aceleración y Agotamiento.
+// 3. ADX + DMI institucional para medición de Fuerza Tendencial.
+// 4. RSI Dinámico con detección de zonas de impulso institucional.
+// 5. TTM Squeeze Momentum (Compresión Bollinger vs Keltner Channels).
+// 6. RVOL (Volumen Relativo Institucional).
+// 7. Motor Cuántico de Puntuación de Confluencia (0 a 100 Puntos).
+// 8. Objetivos Dinámicos ATR (Entrada sugerida, SL, TP1 y TP2).
+// 9. Coloración Inteligente de Velas según Fuerza y Dirección.
+// 10. Panel HUD Glassmorphism Premium en Esquina Superior Derecha.
+// 11. Sistema Completo de Alertas Nativas TradingView.
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. CONFIGURACIÓN Y PARÁMETROS DE ENTRADA
+// -----------------------------------------------------------------------------
+grp_ema   = "🌊 1. MEDIAS MÓVILES INSTITUCIONALES (EMAs)"
+len_ema10 = input.int(10, "Longitud EMA Rápida (Azul Eléctrico)", minval=1, group=grp_ema)
+len_ema55 = input.int(55, "Longitud EMA Lenta (Naranja Fuego)", minval=1, group=grp_ema)
+show_cloud = input.bool(true, "Mostrar Nube de Tendencia entre EMAs", group=grp_ema)
+
+grp_sqz   = "💥 2. TTM SQUEEZE & MOMENTUM"
+len_bb    = input.int(20, "Longitud Bollinger Bands", minval=1, group=grp_sqz)
+mult_bb   = input.float(2.0, "Multiplicador Bollinger", minval=0.1, step=0.1, group=grp_sqz)
+len_kc    = input.int(20, "Longitud Keltner Channels", minval=1, group=grp_sqz)
+mult_kc   = input.float(1.5, "Multiplicador Keltner", minval=0.1, step=0.1, group=grp_sqz)
+
+grp_macd  = "📊 3. MACD DE PRECISIÓN"
+fast_len  = input.int(12, "Longitud Rápida MACD", minval=1, group=grp_macd)
+slow_len  = input.int(26, "Longitud Lenta MACD", minval=1, group=grp_macd)
+sig_len   = input.int(9,  "Longitud Señal MACD", minval=1, group=grp_macd)
+
+grp_adx   = "🧭 4. ADX & FUERZA DIRECCIONAL (DMI)"
+len_adx   = input.int(14, "Longitud DMI / ADX", minval=1, group=grp_adx)
+th_adx    = input.int(23, "Umbral Mínimo Fuerza ADX (Tendencia Fuerte)", minval=10, group=grp_adx)
+
+grp_rsi   = "⚡ 5. RSI DE IMPULSO"
+len_rsi   = input.int(14, "Longitud RSI", minval=1, group=grp_rsi)
+rsi_ob    = input.int(70, "Sobrecompra RSI", minval=50, maxval=90, group=grp_rsi)
+rsi_os    = input.int(30, "Sobrevenda RSI", minval=10, maxval=50, group=grp_rsi)
+
+grp_vol   = "📈 6. VOLUMEN INSTITUCIONAL (RVOL)"
+len_vol   = input.int(20, "SMA Volumen Promedio", minval=1, group=grp_vol)
+th_rvol   = input.float(1.2, "Umbral Volumen Institucional (x Promedio)", minval=1.0, step=0.1, group=grp_vol)
+
+grp_atr   = "🎯 7. GESTIÓN DE RIESGO DINÁMICA (ATR)"
+len_atr   = input.int(14, "Longitud ATR", minval=1, group=grp_atr)
+sl_mult   = input.float(1.5, "Multiplicador Stop Loss (x ATR)", minval=0.5, step=0.1, group=grp_atr)
+tp1_mult  = input.float(2.0, "Multiplicador TP 1 (x ATR)", minval=0.5, step=0.1, group=grp_atr)
+tp2_mult  = input.float(3.5, "Multiplicador TP 2 (x ATR)", minval=1.0, step=0.1, group=grp_atr)
+
+grp_hud   = "🖥️ 8. PANEL DE CONTROL HUD Y VISUALES"
+show_hud  = input.bool(true, "Mostrar Panel HUD en Pantalla", group=grp_hud)
+hud_pos   = input.string("Arriba Derecha", "Posición del Panel", options=["Arriba Derecha", "Abajo Derecha", "Arriba Izquierda", "Abajo Izquierda"], group=grp_hud)
+hud_size  = input.string("Normal", "Tamaño del Panel", options=["Pequeño", "Normal", "Grande"], group=grp_hud)
+color_bars = input.bool(true, "Pintar Velas según Fuerza Institucional", group=grp_hud)
+show_shapes = input.bool(true, "Mostrar Señales Sniper en Gráfico", group=grp_hud)
+
+// -----------------------------------------------------------------------------
+// 2. CÁLCULOS TÉCNICOS FUNDAMENTALES
+// -----------------------------------------------------------------------------
+// 2.1 EMAs
+ema10 = ta.ema(close, len_ema10)
+ema55 = ta.ema(close, len_ema55)
+ema_bullish = ema10 > ema55
+ema_cross_bull = ta.crossover(ema10, ema55)
+ema_cross_bear = ta.crossunder(ema10, ema55)
+
+// 2.2 MACD
+[macd_line, macd_signal, macd_hist] = ta.macd(close, fast_len, slow_len, sig_len)
+macd_hist_rising = macd_hist > macd_hist[1]
+macd_hist_falling = macd_hist < macd_hist[1]
+macd_bullish = macd_hist > 0 and macd_hist_rising
+macd_bearish = macd_hist < 0 and macd_hist_falling
+
+// 2.3 ADX & DMI
+[di_plus, di_minus, adx_val] = ta.dmi(len_adx, len_adx)
+adx_strong = adx_val >= th_adx
+adx_rising = adx_val > adx_val[1]
+trend_bullish = di_plus > di_minus
+trend_bearish = di_minus > di_plus
+
+// 2.4 RSI
+rsi_val = ta.rsi(close, len_rsi)
+rsi_bullish = rsi_val >= 50 and rsi_val < rsi_ob
+rsi_bearish = rsi_val <= 50 and rsi_val > rsi_os
+rsi_overbought = rsi_val >= rsi_ob
+rsi_oversold = rsi_val <= rsi_os
+
+// 2.5 TTM Squeeze (Bollinger Bands vs Keltner Channels)
+bb_basis = ta.sma(close, len_bb)
+bb_dev = mult_bb * ta.stdev(close, len_bb)
+bb_upper = bb_basis + bb_dev
+bb_lower = bb_basis - bb_dev
+
+kc_ma = ta.sma(close, len_kc)
+kc_range = ta.atr(len_kc)
+kc_upper = kc_ma + (kc_range * mult_kc)
+kc_lower = kc_ma - (kc_range * mult_kc)
+
+squeeze_on = (bb_lower > kc_lower) and (bb_upper < kc_upper)
+squeeze_off = (bb_lower < kc_lower) and (bb_upper > kc_upper)
+squeeze_fired_bull = squeeze_off and macd_hist > 0 and macd_hist_rising
+squeeze_fired_bear = squeeze_off and macd_hist < 0 and macd_hist_falling
+
+// 2.6 RVOL (Relative Volume)
+vol_ma = ta.sma(volume, len_vol)
+rvol = vol_ma > 0 ? (volume / vol_ma) : 1.0
+vol_institucional = rvol >= th_rvol
+
+// 2.7 ATR & Niveles de Gestión
+atr_val = ta.atr(len_atr)
+calc_sl_long = close - (atr_val * sl_mult)
+calc_tp1_long = close + (atr_val * tp1_mult)
+calc_tp2_long = close + (atr_val * tp2_mult)
+
+calc_sl_short = close + (atr_val * sl_mult)
+calc_tp1_short = close - (atr_val * tp1_mult)
+calc_tp2_short = close - (atr_val * tp2_mult)
+
+// -----------------------------------------------------------------------------
+// 3. MOTOR CUÁNTICO DE CONFLUENCIA (0 a 100 PUNTOS)
+// -----------------------------------------------------------------------------
+int score_long = 0
+int score_short = 0
+
+// Pilar 1: Tendencia EMA (20 pts)
+if close > ema10 and ema10 > ema55
+    score_long += 20
+if close < ema10 and ema10 < ema55
+    score_short += 20
+
+// Pilar 2: Momentum MACD (20 pts)
+if macd_hist > 0 and macd_hist_rising
+    score_long += 20
+else if macd_hist > 0
+    score_long += 10
+
+if macd_hist < 0 and macd_hist_falling
+    score_short += 20
+else if macd_hist < 0
+    score_short += 10
+
+// Pilar 3: ADX & Fuerza Direccional (20 pts)
+if trend_bullish and adx_strong
+    score_long += adx_rising ? 20 : 15
+else if trend_bullish
+    score_long += 10
+
+if trend_bearish and adx_strong
+    score_short += adx_rising ? 20 : 15
+else if trend_bearish
+    score_short += 10
+
+// Pilar 4: RSI Momentum (15 pts)
+if rsi_val >= 50 and rsi_val <= 68
+    score_long += 15
+else if rsi_val > 68 and rsi_val < 78
+    score_long += 8
+
+if rsi_val <= 50 and rsi_val >= 32
+    score_short += 15
+else if rsi_val < 32 and rsi_val > 22
+    score_short += 8
+
+// Pilar 5: Squeeze & Explosión de Volatilidad (15 pts)
+if squeeze_fired_bull
+    score_long += 15
+else if not squeeze_on and macd_hist > 0
+    score_long += 8
+
+if squeeze_fired_bear
+    score_short += 15
+else if not squeeze_on and macd_hist < 0
+    score_short += 8
+
+// Pilar 6: Volumen Institucional (10 pts)
+if vol_institucional and close > open
+    score_long += 10
+else if rvol >= 1.0 and close > open
+    score_long += 5
+
+if vol_institucional and close < open
+    score_short += 10
+else if rvol >= 1.0 and close < open
+    score_short += 5
+
+// Determinar Confluencia Dominante
+is_buy_signal = score_long >= 75 and (close > ema10)
+is_sell_signal = score_short >= 75 and (close < ema10)
+
+// -----------------------------------------------------------------------------
+// 4. PLOTS DE GRÁFICO (EMAs, NUBE Y SEÑALES)
+// -----------------------------------------------------------------------------
+p_ema10 = plot(ema10, "EMA 10 Rápida", color=color.new(#00e5ff, 0), linewidth=2)
+p_ema55 = plot(ema55, "EMA 55 Lenta",  color=color.new(#ff6d00, 0), linewidth=2)
+
+// Nube de Tendencia Dinámica
+cloud_color = ema_bullish ? color.new(#00e5ff, 85) : color.new(#ff3d00, 85)
+fill(p_ema10, p_ema55, color=show_cloud ? cloud_color : color.new(color.black, 100), title="Nube de Tendencia")
+
+// Señales Sniper sobre el gráfico
+plotshape(show_shapes and is_buy_signal and not is_buy_signal[1], title="🚀 Gatillo Compra Institucional", 
+          style=shape.triangleup, location=location.belowbar, color=#00e676, size=size.small, text="COMPRA PRO", textcolor=color.white)
+
+plotshape(show_shapes and is_sell_signal and not is_sell_signal[1], title="💥 Gatillo Venta Institucional", 
+          style=shape.triangledown, location=location.abovebar, color=#ff1744, size=size.small, text="VENTA PRO", textcolor=color.white)
+
+// Cruces de Medias
+plotshape(show_shapes and ema_cross_bull, title="Cruce Dorado 10/55", style=shape.circle, 
+          location=location.belowbar, color=#00e5ff, size=size.tiny)
+plotshape(show_shapes and ema_cross_bear, title="Cruce Muerte 10/55", style=shape.circle, 
+          location=location.abovebar, color=#ff6d00, size=size.tiny)
+
+// -----------------------------------------------------------------------------
+// 5. COLORACIÓN INTELIGENTE DE VELAS
+// -----------------------------------------------------------------------------
+color_candle = color.white
+if score_long >= 75
+    color_candle := #00e676 // Verde Neón Institucional (Compra Fuerte)
+else if score_long >= 50
+    color_candle := #00b0ff // Azul Cyan (Alcista Moderado)
+else if score_short >= 75
+    color_candle := #ff1744 // Rojo Neón Institucional (Venta Fuerte)
+else if score_short >= 50
+    color_candle := #ff9100 // Naranja (Bajista Moderado)
+else if squeeze_on
+    color_candle := #78909c // Gris Pizarra (Compresión / Squeeze)
+else
+    color_candle := #b0bec5 // Neutro
+
+barcolor(color_bars ? color_candle : na)
+
+// -----------------------------------------------------------------------------
+// 6. PANEL DE CONTROL HUD GLASSMORPHISM (TABLA)
+// -----------------------------------------------------------------------------
+var table_pos = position.top_right
+if hud_pos == "Abajo Derecha"
+    table_pos := position.bottom_right
+else if hud_pos == "Arriba Izquierda"
+    table_pos := position.top_left
+else if hud_pos == "Abajo Izquierda"
+    table_pos := position.bottom_left
+
+var t_size = size.small
+if hud_size == "Pequeño"
+    t_size := size.tiny
+else if hud_size == "Grande"
+    t_size := size.normal
+
+var table hud = table.new(table_pos, 2, 11, 
+                          bgcolor = color.new(#0d1117, 10), 
+                          border_width = 1, 
+                          border_color = color.new(#30363d, 0), 
+                          frame_width = 2, 
+                          frame_color = color.new(#00e5ff, 40))
+
+if show_hud and barstate.islast
+    // Fila 0: Título Principal
+    table.cell(hud, 0, 0, "🔥 CAZADOR PRO INSTITUCIONAL", bgcolor=color.new(#161b22, 0), text_color=#00e5ff, text_size=t_size, text_halign=text.align_center)
+    table.cell(hud, 1, 0, "COMBO DE LOS 3 V6", bgcolor=color.new(#161b22, 0), text_color=#ffffff, text_size=t_size, text_halign=text.align_center)
+
+    // Fila 1: Estado del Sistema / Señal Activa
+    string status_txt = "⏳ ESPERANDO GATILLO"
+    color  status_bg  = color.new(#21262d, 0)
+    color  status_col = #8b949e
+
+    if score_long >= 75
+        status_txt := "🚀 COMPRA INSTITUCIONAL"
+        status_bg  := color.new(#00c853, 20)
+        status_col := #00e676
+    else if score_short >= 75
+        status_txt := "💥 VENTA / SHORT PRO"
+        status_bg  := color.new(#d50000, 20)
+        status_col := #ff1744
+    else if squeeze_on
+        status_txt := "🔒 COMPRESIÓN SQUEEZE"
+        status_bg  := color.new(#ff6d00, 20)
+        status_col := #ffab40
+    else if score_long >= 50
+        status_txt := "📈 SESGO ALCISTA"
+        status_col := #00e5ff
+    else if score_short >= 50
+        status_txt := "📉 SESGO BAJISTA"
+        status_col := #ff9100
+
+    table.cell(hud, 0, 1, "ESTADO GENERAL", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 1, status_txt, bgcolor=status_bg, text_color=status_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 2: Confluencia Cuántica Score
+    string score_txt = "LONG: " + str.tostring(score_long) + "% | SHORT: " + str.tostring(score_short) + "%"
+    color score_col = score_long >= 75 ? #00e676 : (score_short >= 75 ? #ff1744 : (score_long >= 50 ? #00e5ff : #8b949e))
+    table.cell(hud, 0, 2, "CONFLUENCIA", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 2, score_txt, bgcolor=color.new(#161b22, 0), text_color=score_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 3: EMAs 10 / 55
+    string ema_txt = ema_bullish ? "ALCISTA (10 > 55)" : "BAJISTA (10 < 55)"
+    color ema_col = ema_bullish ? #00e676 : #ff1744
+    table.cell(hud, 0, 3, "TENDENCIA EMAs", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 3, ema_txt, bgcolor=color.new(#161b22, 0), text_color=ema_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 4: MACD Momentum
+    string macd_txt = macd_hist > 0 ? (macd_hist_rising ? "▲ ALCISTA ACELERANDO" : "△ ALCISTA AGOTANDO") : (macd_hist_falling ? "▼ BAJISTA ACELERANDO" : "▽ BAJISTA AGOTANDO")
+    color macd_col = macd_hist > 0 ? (macd_hist_rising ? #00e676 : #81c784) : (macd_hist_falling ? #ff1744 : #e57373)
+    table.cell(hud, 0, 4, "MACD MOMENTUM", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 4, macd_txt, bgcolor=color.new(#161b22, 0), text_color=macd_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 5: ADX & Fuerza
+    string adx_txt = str.tostring(adx_val, "#.1") + (adx_strong ? " (FUERTE 🔥)" : " (DÉBIL 💤)")
+    color adx_col = adx_strong ? #00e5ff : #8b949e
+    table.cell(hud, 0, 5, "ADX FUERZA", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 5, adx_txt, bgcolor=color.new(#161b22, 0), text_color=adx_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 6: RSI
+    string rsi_txt = str.tostring(rsi_val, "#.1") + (rsi_overbought ? " [SOBRECOMPRA]" : (rsi_oversold ? " [SOBREVENDA]" : ""))
+    color rsi_col = rsi_overbought ? #ff1744 : (rsi_oversold ? #00e676 : (rsi_val >= 50 ? #00e5ff : #ff9100))
+    table.cell(hud, 0, 6, "RSI (14)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 6, rsi_txt, bgcolor=color.new(#161b22, 0), text_color=rsi_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 7: Squeeze State
+    string sqz_txt = squeeze_on ? "🔒 COMPRESIÓN (CARGANDO)" : (squeeze_fired_bull ? "💥 DISPARO ALCISTA" : (squeeze_fired_bear ? "💥 DISPARO BAJISTA" : "LIBRE / EXPANSIÓN"))
+    color sqz_col = squeeze_on ? #ff9100 : (squeeze_fired_bull ? #00e676 : (squeeze_fired_bear ? #ff1744 : #8b949e))
+    table.cell(hud, 0, 7, "TTM SQUEEZE", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 7, sqz_txt, bgcolor=color.new(#161b22, 0), text_color=sqz_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 8: RVOL
+    string rvol_txt = str.tostring(rvol, "#.2") + "x" + (vol_institucional ? " 🐋 INSTITUCIONAL" : "")
+    color rvol_col = vol_institucional ? #00e5ff : #8b949e
+    table.cell(hud, 0, 8, "VOLUMEN (RVOL)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 8, rvol_txt, bgcolor=color.new(#161b22, 0), text_color=rvol_col, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 9: Objetivos de Riesgo ATR (Long vs Short)
+    string target_txt = score_long >= score_short ? 
+                       ("TP1: " + str.tostring(calc_tp1_long, "#.2") + " | SL: " + str.tostring(calc_sl_long, "#.2")) : 
+                       ("TP1: " + str.tostring(calc_tp1_short, "#.2") + " | SL: " + str.tostring(calc_sl_short, "#.2"))
+    table.cell(hud, 0, 9, "NIVELES ATR", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 9, target_txt, bgcolor=color.new(#161b22, 0), text_color=#ffd600, text_size=t_size, text_halign=text.align_right)
+
+    // Fila 10: R:R Estimado
+    table.cell(hud, 0, 10, "RATIO R:R ESTIMADO", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=t_size, text_halign=text.align_left)
+    table.cell(hud, 1, 10, "1 : " + str.tostring(tp1_mult / sl_mult, "#.2") + " (TP1) / 1 : " + str.tostring(tp2_mult / sl_mult, "#.2") + " (TP2)", bgcolor=color.new(#161b22, 0), text_color=#00e5ff, text_size=t_size, text_halign=text.align_right)
+
+// -----------------------------------------------------------------------------
+// 7. ALERTAS NATIVAS TRADINGVIEW
+// -----------------------------------------------------------------------------
+// Alerta Compra Fuerte
+alertcondition(is_buy_signal and not is_buy_signal[1], 
+               title="🚀 CAZADOR PRO: Compra Institucional", 
+               message="🔥 CAZADOR PRO: Gatillo de COMPRA INSTITUCIONAL detectado en {{ticker}} (Temporalidad: {{interval}}). Confluencia Alta. Precio actual: {{close}}.")
+
+// Alerta Venta Fuerte
+alertcondition(is_sell_signal and not is_sell_signal[1], 
+               title="💥 CAZADOR PRO: Venta Institucional", 
+               message="🔥 CAZADOR PRO: Gatillo de VENTA/SHORT detectado en {{ticker}} (Temporalidad: {{interval}}). Confluencia Alta. Precio actual: {{close}}.")
+
+// Alerta Disparo Squeeze Alcista
+alertcondition(squeeze_fired_bull and not squeeze_fired_bull[1], 
+               title="💥 CAZADOR PRO: Disparo Squeeze Alcista", 
+               message="⚡ SQUEEZE MOMENTUM: Explosión alcista disparada en {{ticker}}. Precio: {{close}}.")
+
+// Alerta Disparo Squeeze Bajista
+alertcondition(squeeze_fired_bear and not squeeze_fired_bear[1], 
+               title="💥 CAZADOR PRO: Disparo Squeeze Bajista", 
+               message="⚡ SQUEEZE MOMENTUM: Explosión bajista disparada en {{ticker}}. Precio: {{close}}.")
+
+// Alerta Cruce EMAs 10/55
+alertcondition(ema_cross_bull, 
+               title="🌊 CAZADOR PRO: Cruce Dorado EMA 10/55", 
+               message="🌊 EMA 10 cruzó al alza EMA 55 en {{ticker}}. Tendencia Alcista confirmada.")
+
+alertcondition(ema_cross_bear, 
+               title="🌊 CAZADOR PRO: Cruce Muerte EMA 10/55", 
+               message="🌊 EMA 10 cruzó a la baja EMA 55 en {{ticker}}. Tendencia Bajista confirmada.")

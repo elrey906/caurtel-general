@@ -1233,6 +1233,56 @@ with tab1:
     if margen_bc > 0:
         equidad_bingx_real = max(equidad_bingx_real, margen_bc + 480.0)
 
+    # ── 0. RADAR DEL AGENTE CENTINELA MACRO 24/7 (DXY, USDT CAP, FOMC) ─────────
+    st_macro = cargar_json(os.path.join(BASE_DIR, "AUTONOMO", "centinela_macro_estado.json"), {})
+    if st_macro:
+        dxy_data = st_macro.get("dxy", {})
+        usdt_data = st_macro.get("usdt", {})
+        cat_data = st_macro.get("catalizadores", {})
+        fomc_data = cat_data.get("fomc", {})
+        cpi_data = cat_data.get("cpi", {})
+        sem_macro = st_macro.get("semaforo", "VERDE")
+        veredicto_m = st_macro.get("veredicto", "🟢 VENTANA INSTITUCIONAL RISK-ON")
+        accion_m = st_macro.get("accion_sugerida", "Operar con normalidad.")
+        
+        sem_color = "#22c55e" if "VERDE" in sem_macro else ("#eab308" if "AMARILLO" in sem_macro else "#ef4444")
+        sem_bg = "rgba(34, 197, 94, 0.12)" if "VERDE" in sem_macro else ("rgba(234, 179, 8, 0.12)" if "AMARILLO" in sem_macro else "rgba(239, 68, 68, 0.12)")
+
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), {sem_bg}); border: 2px solid {sem_color}; border-radius: 16px; padding: 18px; margin-bottom: 22px; box-shadow: 0 0 25px rgba(56,189,248,0.15);">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <span style="background:{sem_color}; color:#090d16; font-weight:900; font-size:0.75rem; padding:4px 10px; border-radius:20px; text-transform:uppercase;">
+                        🛰️ AGENTE CENTINELA MACRO · {sem_macro}
+                    </span>
+                    <h3 style="margin:6px 0 0 0; color:#f8fafc; font-weight:800; font-size:1.25rem;">
+                        {veredicto_m}
+                    </h3>
+                    <div style="color:#94a3b8; font-size:0.85rem; margin-top:3px;">
+                        👉 <strong>Acción Recomendada:</strong> {accion_m}
+                    </div>
+                </div>
+                <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                    <div style="background:rgba(15,23,42,0.8); border:1px solid #334155; border-radius:10px; padding:8px 14px; text-align:center;">
+                        <div style="font-size:0.7rem; color:#94a3b8; font-weight:700;">DXY (DÓLAR)</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#38bdf8;">{dxy_data.get('valor', 99.2):.2f} pts</div>
+                        <div style="font-size:0.65rem; color:#22c55e;">Viento a Favor</div>
+                    </div>
+                    <div style="background:rgba(15,23,42,0.8); border:1px solid #334155; border-radius:10px; padding:8px 14px; text-align:center;">
+                        <div style="font-size:0.7rem; color:#94a3b8; font-weight:700;">USDT DRY POWDER</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#eab308;">${usdt_data.get('mcap_b', 185.4):.1f}B</div>
+                        <div style="font-size:0.65rem; color:#cbd5e1;">Dom: {usdt_data.get('dominancia_pct', 7.6):.1f}%</div>
+                    </div>
+                    <div style="background:rgba(15,23,42,0.8); border:1px solid #eab308; border-radius:10px; padding:8px 14px; text-align:center;">
+                        <div style="font-size:0.7rem; color:#eab308; font-weight:700;">🏛️ FOMC TIPOS FED</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#22c55e;">{fomc_data.get('texto_restante', '9d 19h')}</div>
+                        <div style="font-size:0.65rem; color:#94a3b8;">16 Sept 14:00 ET</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     capital_binance_real = clean_num(st_mh.get("equity_total_usd", 282.58), 282.58)
     capital_actual_usd = capital_binance_real + equidad_bingx_real
 

@@ -1,0 +1,345 @@
+//@version=6
+indicator("🔥 CAZADOR PRO - MOTOR MAESTRO DE TOMA DE DECISIONES V6", shorttitle="🔥 MASTER_DECISION_V6", overlay=true, precision=2)
+
+// =============================================================================
+// 🔥 ECOSISTEMA CAZADOR PRO — MOTOR MAESTRO CUÁNTICO DE DECISIONES V6
+// -----------------------------------------------------------------------------
+// Integra TODA la inteligencia institucional acumulada:
+// 1. Tendencia y Nube EMAs 10/55 con Salida Dinámica por Cierre bajo EMA 10.
+// 2. MACD Momentum con Sensor de Agotamiento de Combustible (Alerta Temprana).
+// 3. ADX Institucional (>23) con Filtro de Mercado Lateral.
+// 4. RSI Dinámico con Detección de Zonas de Impulso y Divergencias.
+// 5. TTM Squeeze (Compresión vs Disparo de Volatilidad Explosiva).
+// 6. RVOL Institucional (Volumen > 1.2x Promedio).
+// 7. Líneas de Niveles Dinámicos en Gráfico: ENTRADA, SL, TP1 (+50% Lock), TP2.
+// 8. Candado de Breakeven Automático al Tocar TP1.
+// 9. Sensor de Salida Anticipada ("Take Profit de Emergencia" antes de retroceso).
+// 10. Panel HUD de Toma de Decisiones en Tiempo Real (Semáforo Institucional).
+// 11. Alertas Nativas TradingView para Entradas, Salidas Dinámicas y TP1.
+// =============================================================================
+
+// -----------------------------------------------------------------------------
+// 1. PARÁMETROS CONFIGURABLES
+// -----------------------------------------------------------------------------
+grp_trend = "🌊 1. TENDENCIA Y EMAs"
+len_e10   = input.int(10, "EMA 10 Rápida (Línea de Vida)", minval=1, group=grp_trend)
+len_e55   = input.int(55, "EMA 55 Lenta (Tendencia Mayor)", minval=1, group=grp_trend)
+show_cloud= input.bool(true, "Mostrar Nube de Tendencia Dinámica", group=grp_trend)
+
+grp_mom   = "📊 2. MOMENTUM Y AGOTAMIENTO (MACD + SQUEEZE)"
+fast_len  = input.int(12, "MACD Rápida", minval=1, group=grp_mom)
+slow_len  = input.int(26, "MACD Lenta", minval=1, group=grp_mom)
+sig_len   = input.int(9,  "MACD Señal", minval=1, group=grp_mom)
+len_bb    = input.int(20, "Longitud Bollinger", minval=1, group=grp_mom)
+mult_bb   = input.float(2.0, "Mult Bollinger", minval=0.1, group=grp_mom)
+len_kc    = input.int(20, "Longitud Keltner", minval=1, group=grp_mom)
+mult_kc   = input.float(1.5, "Mult Keltner", minval=0.1, group=grp_mom)
+
+grp_flt   = "🧭 3. FILTROS INSTITUCIONALES (ADX, RSI, RVOL)"
+len_adx   = input.int(14, "Longitud ADX", minval=1, group=grp_flt)
+th_adx    = input.int(23, "Umbral Mínimo Tendencia Fuerte ADX", minval=10, group=grp_flt)
+len_rsi   = input.int(14, "Longitud RSI", minval=1, group=grp_flt)
+len_vol   = input.int(20, "SMA Volumen", minval=1, group=grp_flt)
+th_rvol   = input.float(1.2, "Umbral Volumen Institucional (x Promedio)", step=0.1, group=grp_flt)
+
+grp_risk  = "🎯 4. GESTIÓN DINÁMICA DE RIESGO (ATR)"
+len_atr   = input.int(14, "Longitud ATR", minval=1, group=grp_risk)
+sl_mult   = input.float(1.5, "Stop Loss (x ATR)", step=0.1, group=grp_risk)
+tp1_mult  = input.float(2.0, "TP1 Parcial 50% + Breakeven (x ATR)", step=0.1, group=grp_risk)
+tp2_mult  = input.float(3.5, "TP2 Swing / Runner (x ATR)", step=0.1, group=grp_risk)
+show_lines= input.bool(true, "Dibujar Líneas Dinámicas TP/SL en Pantalla", group=grp_risk)
+
+grp_hud   = "🖥️ 5. PANEL DE CONTROL HUD Y VISUALES"
+show_hud  = input.bool(true, "Mostrar Panel HUD Maestro", group=grp_hud)
+hud_pos   = input.string("Arriba Derecha", "Posición del HUD", options=["Arriba Derecha", "Abajo Derecha", "Arriba Izquierda", "Abajo Izquierda"], group=grp_hud)
+
+// -----------------------------------------------------------------------------
+// 2. CÁLCULOS MATEMÁTICOS DE CONFLUENCIA Y DECISIÓN
+// -----------------------------------------------------------------------------
+// EMAs
+e10 = ta.ema(close, len_e10)
+e55 = ta.ema(close, len_e55)
+bull_ema = e10 > e55
+cross_bull = ta.crossover(e10, e55)
+cross_bear = ta.crossunder(e10, e55)
+
+// MACD
+[macd_l, macd_s, macd_h] = ta.macd(close, fast_len, slow_len, sig_len)
+macd_rising = macd_h > macd_h[1]
+macd_exhaustion = macd_h > 0 and not macd_rising // Agotamiento del combustible alcista
+macd_short_exhaustion = macd_h < 0 and macd_rising // Agotamiento bajista
+
+// ADX & DMI
+[di_p, di_m, adx_v] = ta.dmi(len_adx, len_adx)
+adx_strong = adx_v >= th_adx
+
+// RSI
+rsi_v = ta.rsi(close, len_rsi)
+
+// TTM Squeeze
+bb_base = ta.sma(close, len_bb)
+bb_dev = mult_bb * ta.stdev(close, len_bb)
+kc_base = ta.sma(close, len_kc)
+kc_range = ta.atr(len_kc) * mult_kc
+sqz_on = (bb_base - bb_dev > kc_base - kc_range) and (bb_base + bb_dev < kc_base + kc_range)
+sqz_off = not sqz_on
+sqz_fired_bull = sqz_off and macd_h > 0 and macd_rising
+sqz_fired_bear = sqz_off and macd_h < 0 and not macd_rising
+
+// RVOL
+vol_sma = ta.sma(volume, len_vol)
+rvol = vol_sma > 0 ? (volume / vol_sma) : 1.0
+vol_ok = rvol >= th_rvol
+
+// ATR & Dynamic Levels
+atr_v = ta.atr(len_atr)
+calc_sl_l  = close - (atr_v * sl_mult)
+calc_tp1_l = close + (atr_v * tp1_mult)
+calc_tp2_l = close + (atr_v * tp2_mult)
+
+calc_sl_s  = close + (atr_v * sl_mult)
+calc_tp1_s = close - (atr_v * tp1_mult)
+calc_tp2_s = close - (atr_v * tp2_mult)
+
+// -----------------------------------------------------------------------------
+// 3. MOTOR CUÁNTICO DE CONFLUENCIA (SCORE 0 - 100 PTS)
+// -----------------------------------------------------------------------------
+int score_l = 0
+int score_s = 0
+
+// Tendencia (25 pts)
+if close > e10 and e10 > e55
+    score_l += 25
+if close < e10 and e10 < e55
+    score_s += 25
+
+// Momentum MACD (25 pts)
+if macd_h > 0 and macd_rising
+    score_l += 25
+else if macd_h > 0
+    score_l += 12
+
+if macd_h < 0 and not macd_rising
+    score_s += 25
+else if macd_h < 0
+    score_s += 12
+
+// Fuerza ADX (25 pts)
+if di_p > di_m and adx_strong
+    score_l += 25
+else if di_p > di_m
+    score_l += 12
+
+if di_m > di_p and adx_strong
+    score_s += 25
+else if di_m > di_p
+    score_s += 12
+
+// RSI + Volumen (25 pts)
+if rsi_v >= 50 and rsi_v <= 68 and vol_ok
+    score_l += 25
+else if rsi_v >= 50 and rsi_v <= 70
+    score_l += 15
+
+if rsi_v <= 50 and rsi_v >= 32 and vol_ok
+    score_s += 25
+else if rsi_v <= 50 and rsi_v >= 30
+    score_s += 15
+
+// Gatillos de Entrada
+buy_trigger  = score_l >= 75 and (close > e10)
+sell_trigger = score_s >= 75 and (close < e10)
+
+// Sensores de Salida Anticipada / Agotamiento (Anti-Trampa)
+exit_warning_long  = (macd_exhaustion or close < e10) and (score_l[1] >= 75 or buy_trigger[1])
+exit_warning_short = (macd_short_exhaustion or close > e10) and (score_s[1] >= 75 or sell_trigger[1])
+
+// -----------------------------------------------------------------------------
+// 4. TRAZADO DE LÍNEAS DINÁMICAS EN PANTALLA (TP1, TP2, SL)
+// -----------------------------------------------------------------------------
+var float active_entry = na
+var float active_sl    = na
+var float active_tp1   = na
+var float active_tp2   = na
+var int   active_dir   = 0 // 1 = Long, -1 = Short
+
+if buy_trigger and not buy_trigger[1]
+    active_entry := close
+    active_sl    := calc_sl_l
+    active_tp1   := calc_tp1_l
+    active_tp2   := calc_tp2_l
+    active_dir   := 1
+else if sell_trigger and not sell_trigger[1]
+    active_entry := close
+    active_sl    := calc_sl_s
+    active_tp1   := calc_tp1_s
+    active_tp2   := calc_tp2_s
+    active_dir   := -1
+
+// Ajuste automático de Breakeven si el precio supera TP1
+if active_dir == 1 and high >= active_tp1 and not na(active_tp1)
+    active_sl := active_entry // Mover SL a Breakeven
+else if active_dir == -1 and low <= active_tp1 and not na(active_tp1)
+    active_sl := active_entry
+
+// Plots
+p_e10 = plot(e10, "EMA 10 (Línea de Vida)", color=color.new(#00e5ff, 0), linewidth=2)
+p_e55 = plot(e55, "EMA 55 (Tendencia Mayor)", color=color.new(#ff6d00, 0), linewidth=2)
+
+cloud_col = bull_ema ? color.new(#00e5ff, 85) : color.new(#ff3d00, 85)
+fill(p_e10, p_e55, color=show_cloud ? cloud_col : color.new(color.black, 100), title="Nube Dinámica")
+
+// Líneas de Gestión en Vivo
+plot(show_lines and active_dir != 0 ? active_tp2 : na, "🎯 TP2 (Extensión Swing)", color=color.new(#00e676, 0), linewidth=2, style=plot.style_linebr)
+plot(show_lines and active_dir != 0 ? active_tp1 : na, "🎯 TP1 (Cierre 50% + Breakeven)", color=color.new(#ffd600, 0), linewidth=2, style=plot.style_linebr)
+plot(show_lines and active_dir != 0 ? active_sl : na,  "🛑 STOP LOSS DINÁMICO", color=color.new(#ff1744, 0), linewidth=2, style=plot.style_linebr)
+
+// Señales visuales sobre velas
+plotshape(buy_trigger and not buy_trigger[1], title="🚀 GATILLO COMPRA SNIPER", 
+          style=shape.triangleup, location=location.belowbar, color=#00e676, size=size.small, text="COMPRA PRO", textcolor=color.white)
+
+plotshape(sell_trigger and not sell_trigger[1], title="💥 GATILLO VENTA SNIPER", 
+          style=shape.triangledown, location=location.abovebar, color=#ff1744, size=size.small, text="VENTA PRO", textcolor=color.white)
+
+plotshape(exit_warning_long and not exit_warning_long[1], title="⚠️ ALERTA AGOTAMIENTO / TOMA GANANCIA", 
+          style=shape.diamond, location=location.abovebar, color=#ffd600, size=size.tiny, text="AGOTAMIENTO", textcolor=color.yellow)
+
+// Pintar Velas
+color_bar = color.white
+if score_l >= 75
+    color_bar := #00e676
+else if score_s >= 75
+    color_bar := #ff1744
+else if sqz_on
+    color_bar := #78909c
+else if score_l >= 50
+    color_bar := #00b0ff
+else if score_s >= 50
+    color_bar := #ff9100
+
+barcolor(color_bar)
+
+// -----------------------------------------------------------------------------
+// 5. PANEL DE CONTROL HUD MAESTRO DE DECISIONES
+// -----------------------------------------------------------------------------
+var t_pos = position.top_right
+if hud_pos == "Abajo Derecha"
+    t_pos := position.bottom_right
+else if hud_pos == "Arriba Izquierda"
+    t_pos := position.top_left
+else if hud_pos == "Abajo Izquierda"
+    t_pos := position.bottom_left
+
+var table hud = table.new(t_pos, 2, 11, 
+                          bgcolor = color.new(#090d16, 12), 
+                          border_width = 1, 
+                          border_color = color.new(#30363d, 0), 
+                          frame_width = 2, 
+                          frame_color = color.new(#00e5ff, 40))
+
+if show_hud and barstate.islast
+    // Fila 0: Título
+    table.cell(hud, 0, 0, "🔥 CAZADOR PRO MAESTRO", bgcolor=color.new(#161b22, 0), text_color=#00e5ff, text_size=size.small, text_halign=text.align_center)
+    table.cell(hud, 1, 0, "MOTOR DE DECISIÓN V6", bgcolor=color.new(#161b22, 0), text_color=#ffffff, text_size=size.small, text_halign=text.align_center)
+
+    // Fila 1: Veredicto de Acción Inmediata
+    string action_txt = "⏳ ESPERAR CONFIRMACIÓN"
+    color  action_bg  = color.new(#21262d, 0)
+    color  action_col = #8b949e
+
+    if buy_trigger
+        action_txt := "🚀 ENTRADA COMPRA INSTITUCIONAL"
+        action_bg  := color.new(#00c853, 20)
+        action_col := #00e676
+    else if sell_trigger
+        action_txt := "💥 ENTRADA VENTA / SHORT"
+        action_bg  := color.new(#d50000, 20)
+        action_col := #ff1744
+    else if macd_exhaustion and close > e55
+        action_txt := "⚠️ AGOTAMIENTO: ASEGURA GANANCIAS"
+        action_bg  := color.new(#ffd600, 20)
+        action_col := #ffd600
+    else if sqz_on
+        action_txt := "🔒 SQUEEZE: PREPARAR GATILLO"
+        action_bg  := color.new(#ff6d00, 20)
+        action_col := #ffab40
+    else if score_l >= 50
+        action_txt := "📈 MANTENER LONG (CABALGA EMA 10)"
+        action_col := #00e5ff
+    else if score_s >= 50
+        action_txt := "📉 MANTENER SHORT"
+        action_col := #ff9100
+
+    table.cell(hud, 0, 1, "DECISIÓN EN VIVO", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 1, action_txt, bgcolor=action_bg, text_color=action_col, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 2: Confluencia Cuántica
+    string sc_str = "LONG: " + str.tostring(score_l) + "% | SHORT: " + str.tostring(score_s) + "%"
+    color  sc_col = score_l >= 75 ? #00e676 : (score_s >= 75 ? #ff1744 : #00e5ff)
+    table.cell(hud, 0, 2, "CONFLUENCIA", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 2, sc_str, bgcolor=color.new(#161b22, 0), text_color=sc_col, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 3: Stop Loss Recomendado
+    string sl_str = score_l >= score_s ? ("$" + str.tostring(calc_sl_l, "#.2") + " (-" + str.tostring((close - calc_sl_l)/close*100, "#.1") + "%)") : 
+                                         ("$" + str.tostring(calc_sl_s, "#.2") + " (+" + str.tostring((calc_sl_s - close)/close*100, "#.1") + "%)")
+    table.cell(hud, 0, 3, "🛑 STOP LOSS (1.5x ATR)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 3, sl_str, bgcolor=color.new(#161b22, 0), text_color=#ff5252, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 4: TP1 (Cierre 50% + Breakeven)
+    string tp1_str = score_l >= score_s ? ("$" + str.tostring(calc_tp1_l, "#.2") + " (+" + str.tostring((calc_tp1_l - close)/close*100, "#.1") + "%)") : 
+                                          ("$" + str.tostring(calc_tp1_s, "#.2") + " (-" + str.tostring((close - calc_tp1_s)/close*100, "#.1") + "%)")
+    table.cell(hud, 0, 4, "🎯 TP1 (CANDADO 50%)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 4, tp1_str, bgcolor=color.new(#161b22, 0), text_color=#ffd600, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 5: TP2 (Extensión Swing Fib 1.618)
+    string tp2_str = score_l >= score_s ? ("$" + str.tostring(calc_tp2_l, "#.2") + " (+" + str.tostring((calc_tp2_l - close)/close*100, "#.1") + "%)") : 
+                                          ("$" + str.tostring(calc_tp2_s, "#.2") + " (-" + str.tostring((close - calc_tp2_s)/close*100, "#.1") + "%)")
+    table.cell(hud, 0, 5, "🏆 TP2 (SWING RUNNER)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 5, tp2_str, bgcolor=color.new(#161b22, 0), text_color=#00e676, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 6: Salida Dinámica (Línea de Vida)
+    string exit_txt = close > e10 ? "VIVO (Sobre EMA 10)" : "⚠️ PELIGRO (Bajo EMA 10)"
+    color  exit_col = close > e10 ? #00e676 : #ff1744
+    table.cell(hud, 0, 6, "LÍNEA DE VIDA (EMA 10)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 6, exit_txt, bgcolor=color.new(#161b22, 0), text_color=exit_col, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 7: Estado de Combustible MACD
+    string fuel_txt = macd_h > 0 ? (macd_rising ? "🔥 ACELERANDO MÁXIMO" : "⚠️ DESACELERANDO (TOMAR)") : (not macd_rising ? "💥 PRESIÓN VENDEDORA" : "△ AGOTAMIENTO VENDEDOR")
+    color  fuel_col = macd_h > 0 ? (macd_rising ? #00e676 : #ffd600) : (not macd_rising ? #ff1744 : #80cbc4)
+    table.cell(hud, 0, 7, "COMBUSTIBLE MACD", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 7, fuel_txt, bgcolor=color.new(#161b22, 0), text_color=fuel_col, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 8: Fuerza Direccional ADX
+    string adx_str = str.tostring(adx_v, "#.1") + (adx_strong ? " (TENDENCIA FUERTE 🔥)" : " (RANGO / DÉBIL 💤)")
+    color  adx_c   = adx_strong ? #00e5ff : #8b949e
+    table.cell(hud, 0, 8, "FUERZA ADX (23)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 8, adx_str, bgcolor=color.new(#161b22, 0), text_color=adx_c, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 9: Volumen Institucional RVOL
+    string vol_str = str.tostring(rvol, "#.2") + "x" + (vol_ok ? " 🐋 INSTITUCIONAL" : " (NORMAL)")
+    color  vol_c   = vol_ok ? #00e5ff : #8b949e
+    table.cell(hud, 0, 9, "VOLUMEN (RVOL)", bgcolor=color.new(#0d1117, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 9, vol_str, bgcolor=color.new(#161b22, 0), text_color=vol_c, text_size=size.small, text_halign=text.align_right)
+
+    // Fila 10: Ratio R:R Global
+    table.cell(hud, 0, 10, "RATIO RIESGO : BENEFICIO", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=size.small, text_halign=text.align_left)
+    table.cell(hud, 1, 10, "1 : 1.33 (TP1) ── 1 : 2.33 (TP2)", bgcolor=color.new(#161b22, 0), text_color=#00e5ff, text_size=size.small, text_halign=text.align_right)
+
+// -----------------------------------------------------------------------------
+// 6. ALERTAS NATIVAS TRADINGVIEW
+// -----------------------------------------------------------------------------
+alertcondition(buy_trigger and not buy_trigger[1], 
+               title="🚀 CAZADOR PRO: Gatillo Compra Institucional", 
+               message="🔥 CAZADOR PRO: COMPRA INSTITUCIONAL en {{ticker}}. Confluencia >= 75%. Entrada: {{close}} | TP1 Parcial: " + str.tostring(calc_tp1_l, "#.2") + " | SL: " + str.tostring(calc_sl_l, "#.2"))
+
+alertcondition(sell_trigger and not sell_trigger[1], 
+               title="💥 CAZADOR PRO: Gatillo Venta / Short", 
+               message="🔥 CAZADOR PRO: VENTA/SHORT INSTITUCIONAL en {{ticker}}. Entrada: {{close}} | TP1: " + str.tostring(calc_tp1_s, "#.2") + " | SL: " + str.tostring(calc_sl_s, "#.2"))
+
+alertcondition(exit_warning_long and not exit_warning_long[1], 
+               title="⚠️ CAZADOR PRO: Alerta Agotamiento de Impulso", 
+               message="⚠️ ATENCIÓN: El impulso de {{ticker}} está perdiendo combustible o cerró bajo EMA 10. ¡Asegura ganancias o sube Stop a Breakeven!")
+
+alertcondition(high >= active_tp1 and active_dir == 1, 
+               title="🎯 CAZADOR PRO: TP1 Alcanzado (Candado Breakeven)", 
+               message="🎯 OBJETIVO TP1 ALCANZADO en {{ticker}}. Cierra el 50% y mueve Stop Loss a Breakeven.")

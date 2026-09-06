@@ -10,8 +10,8 @@ mkdir -p "$LOG_DIR"
 echo "🦅 [GUARDIÁN 24/7] Iniciando Fábrica Cuántica de Septiembre 2027..."
 
 while true; do
-    # 1. Verificar si hay conexión básica antes de revivir procesos
-    if ping -c 1 8.8.8.8 > /dev/null 2>&1 || ping -c 1 1.1.1.1 > /dev/null 2>&1; then
+    # 1. Verificar procesos y mantener fábrica viva
+    if true; then
         
         # Cerebro 1: Blue Chips Wall Street (BingX)
         if ! pgrep -f "cazador_blue_chips_wall_street.py" > /dev/null; then
@@ -51,10 +51,16 @@ while true; do
             nohup "$VENV/streamlit" run "$DIR_SEPTIEMBRE/AUTONOMO/dashboard_mega_agente.py" --server.port 8560 --server.headless true --server.enableCORS false --server.enableXsrfProtection false >> "$LOG_DIR/dashboard_8560.log" 2>&1 &
         fi
 
+        # Agente Centinela Macro 24/7 (DXY, USDT Cap, Cuenta Regresiva FOMC)
+        if ! pgrep -f "agente_centinela_macro.py" > /dev/null; then
+            echo "[$(date)] 🛰️ Agente Centinela Macro 24/7 iniciado/revivido." >> "$LOG_DIR/guardian.log"
+            nohup "$VENV/python3" "$DIR_SEPTIEMBRE/AUTONOMO/agente_centinela_macro.py" >> "$DIR_SEPTIEMBRE/AUTONOMO/centinela_macro.log" 2>&1 &
+        fi
+
         # Dashboard Cerebro 3 (Puerto 8555)
         if ! pgrep -f "dashboard_trifecta_hibrido.py" > /dev/null; then
             echo "[$(date)] 🚀 Dashboard Trifecta (8555) iniciado/revivido." >> "$LOG_DIR/guardian.log"
-            nohup "$VENV/streamlit" run "$DIR_SEPTIEMBRE/HIBRIDO/dashboard_trifecta_hibrido.py" --server.port 8555 --server.headless true --server.enableCORS false --server.enableXsrfProtection false >> "$LOG_DIR/dashboard_8555.log" 2>&1 &
+            nohup "$VENV/streamlit" run "$DIR_SEPTIEMBRE/HIBRIDO/dashboard_trifecta_hibrido.py" --server.port 8555 --server.address 0.0.0.0 --server.headless true --server.enableCORS false --server.enableXsrfProtection false >> "$LOG_DIR/dashboard_8555.log" 2>&1 &
         fi
 
     else
