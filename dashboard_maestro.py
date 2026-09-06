@@ -115,10 +115,69 @@ except Exception:
     pass
 
 try:
-    from binance_api_manager import obtener_datos_margin_account, obtener_precio_actual
+    from binance_api_manager import obtener_datos_margin_account, obtener_precio_actual as _b_obtener_precio
+    def obtener_precio_actual(sym="BTCUSDT"):
+        p = None
+        try:
+            p = _b_obtener_precio(sym)
+        except Exception:
+            pass
+        if p and p > 1000.0:
+            return float(p)
+        return obtener_precio_publico(sym)
 except Exception:
     def obtener_datos_margin_account(): return {"error": "binance_api_manager no disponible"}
-    def obtener_precio_actual(sym): return 77000.0
+    def obtener_precio_actual(sym="BTCUSDT"): return obtener_precio_publico(sym)
+
+def obtener_precio_publico(sym="BTCUSDT"):
+    """Consulta múltiples APIs públicas globales sin requerir autenticación"""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    # 1. Binance Vision & Endpoints de Mercado Abierto
+    for url in [
+        "https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT",
+        "https://api3.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
+        "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT"
+    ]:
+        try:
+            r = requests.get(url, headers=headers, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                if "price" in data:
+                    return float(data["price"])
+        except Exception:
+            pass
+
+    # 2. Coinbase Spot Abierto
+    try:
+        r = requests.get("https://api.coinbase.com/v2/prices/BTC-USD/spot", headers=headers, timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            return float(data["data"]["amount"])
+    except Exception:
+        pass
+
+    # 3. Kraken Spot Abierto
+    try:
+        r = requests.get("https://api.kraken.com/0/public/Ticker?pair=XBTUSDT", headers=headers, timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            res = data.get("result", {})
+            for k in res:
+                return float(res[k]["c"][0])
+    except Exception:
+        pass
+
+    # 4. CoinGecko Simple Price
+    try:
+        r = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd", headers=headers, timeout=3)
+        if r.status_code == 200:
+            data = r.json()
+            return float(data["bitcoin"]["usd"])
+    except Exception:
+        pass
+
+    return 79950.0
+
 
 PLACEHOLDER_SCRIPT = False
 
@@ -483,9 +542,10 @@ def cargar_funding_rate_oi():
         pass
     return {"funding_rate": funding_rate, "open_interest": oi_btc}
 
-@st.cache_data(ttl=28800)
+@st.cache_data(ttl=60)
 def cargar_klines(interval, limit):
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    # 1. Binance Vision & Endpoints Globales
     for base in ["https://data-api.binance.vision", "https://api3.binance.com", "https://api.binance.com"]:
         try:
             url = f"{base}/api/v3/klines?symbol=BTCUSDT&interval={interval}&limit={limit}"
@@ -501,7 +561,27 @@ def cargar_klines(interval, limit):
         except Exception:
             pass
 
+    # 2. Coinbase Pro / Advanced Candle API (Fallback universal)
+    granularity_map = {"1h": 3600, "4h": 21600, "1d": 86400, "1w": 86400, "1M": 86400}
+    gran = granularity_map.get(interval, 3600)
+    try:
+        url_cb = f"https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity={gran}"
+        r_cb = requests.get(url_cb, headers=headers, timeout=4)
+        if r_cb.status_code == 200:
+            res_cb = r_cb.json()
+            if isinstance(res_cb, list) and len(res_cb) > 0:
+                # [time, low, high, open, close, volume]
+                df_cb = pd.DataFrame(res_cb, columns=["ts", "L", "H", "O", "C", "V"])
+                for c2 in ["O", "H", "L", "C", "V"]: df_cb[c2] = df_cb[c2].astype(float)
+                df_cb["ts"] = pd.to_datetime(df_cb["ts"], unit="s")
+                df_cb.sort_values("ts", inplace=True)
+                df_cb.set_index("ts", inplace=True)
+                return df_cb.tail(limit)
+    except Exception:
+        pass
+
     for p_csv in [
+        os.path.join(BASE_DIR, "DATOS", "BTC_1h.csv"),
         "/home/h/Escritorio/RESPALDO/2027/VELAS/BTC_1h.csv",
         "/home/h/Escritorio/RESPALDO/2027/DATOS/VELAS/BTC_1h.csv"
     ]:
