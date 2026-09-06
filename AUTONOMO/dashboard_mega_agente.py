@@ -89,8 +89,8 @@ col_f1, col_f2, col_bin = st.columns(3)
 # ── FASE 1: BINGX RÁPIDAS (ALTCOINS) ──────────────────────────
 with col_f1:
     pos_f1 = st_agente.get("fase1_rapidas_activas", {})
-    st.markdown(f"### ⚡ FASE 1: RÁPIDAS ({len(pos_f1)}/3 Ranuras)")
-    st.caption("Caza de mechas y rebotes elásticos (Salida en TP/SL Natural · $10 @ 10X)")
+    st.markdown(f"### ⚡ FASE 1: ALTCOINS ({len(pos_f1)}/3 Ranuras)")
+    st.caption("👻 MODO FANTASMA / PAPER TRADING (Señales visuales para comparar sin riesgo)")
     
     for i in range(3):
         syms_f1 = list(pos_f1.keys())

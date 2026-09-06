@@ -140,18 +140,8 @@ def sincronizar_posiciones_reales_bingx(st, modo):
         live = bingx_obtener_posiciones_activas()
         syms_vivos = {p.get("symbol") for p in live if float(p.get("positionAmt", 0)) != 0}
         
-        # Verificar Fase 1
-        for sym, data in list(st["fase1_rapidas_activas"].items()):
-            bsym = data["bingx_sym"]
-            if bsym not in syms_vivos:
-                log.info(f"🔔 [CIERRE DETECTADO EN BINGX] {sym} de Fase 1 ya no está abierta en BingX.")
-                # Registrar en libro mayor
-                registrar_operacion_cerrada(
-                    "FASE1_RAPIDA", sym, "BINGX", "LONG",
-                    data["entry_px"], data["tp_px"], BINGX_MARGEN_USD,
-                    data["margen_usd"] * 0.45, "CIERRE_EXTERNO_O_TP_BINGX", "Verificado en API"
-                )
-                del st["fase1_rapidas_activas"][sym]
+        # Nota: Fase 1 (Altcoins) se gestiona 100% en Paper Trading virtual por lo que no depende de posiciones de BingX.
+
 
         # Verificar Fase 2
         for sym, data in list(st["fase2_macro_activas"].items()):
@@ -181,28 +171,22 @@ def evaluar_y_ejecutar_fase1(st, modo, ocupados):
         
         # Take Profit
         if px >= pos["tp_px"]:
-            log.info(f"🎯 [TAKE PROFIT F1 ALCANZADO] {sym} @ ${px:,.2f} >= TP ${pos['tp_px']:,.2f}")
-            if modo == "REAL":
-                bingx_cerrar_posicion_mercado(pos["bingx_sym"], "LONG", pos["qty_tokens"])
-            
+            log.info(f"🎯 [TAKE PROFIT F1 ALCANZADO (PAPER)] {sym} @ ${px:,.2f} >= TP ${pos['tp_px']:,.2f}")
             pnl_usd = (px - pos["entry_px"]) * pos["qty_tokens"]
             registrar_operacion_cerrada(
-                "FASE1_RAPIDA", sym, "BINGX", "LONG", pos["entry_px"], px,
-                pos["margen_usd"], pnl_usd, "TAKE_PROFIT_F1", f"{horas_vida:.1f}h"
+                "FASE1_RAPIDA", sym, "PAPER_BINGX", "LONG", pos["entry_px"], px,
+                pos["margen_usd"], pnl_usd, "TAKE_PROFIT_F1_PAPER", f"{horas_vida:.1f}h"
             )
             del pos_f1[sym]
             continue
             
         # Stop Loss
         elif px <= pos["sl_px"]:
-            log.info(f"🛑 [STOP LOSS F1 EJECUTADO] {sym} @ ${px:,.2f} <= SL ${pos['sl_px']:,.2f}")
-            if modo == "REAL":
-                bingx_cerrar_posicion_mercado(pos["bingx_sym"], "LONG", pos["qty_tokens"])
-                
+            log.info(f"🛑 [STOP LOSS F1 EJECUTADO (PAPER)] {sym} @ ${px:,.2f} <= SL ${pos['sl_px']:,.2f}")
             pnl_usd = (px - pos["entry_px"]) * pos["qty_tokens"]
             registrar_operacion_cerrada(
-                "FASE1_RAPIDA", sym, "BINGX", "LONG", pos["entry_px"], px,
-                pos["margen_usd"], pnl_usd, "STOP_LOSS_F1", f"{horas_vida:.1f}h"
+                "FASE1_RAPIDA", sym, "PAPER_BINGX", "LONG", pos["entry_px"], px,
+                pos["margen_usd"], pnl_usd, "STOP_LOSS_F1_PAPER", f"{horas_vida:.1f}h"
             )
             
             # 🧊 ENFRIAMIENTO ACTIVADO (Anti-Revenge Trading)
@@ -244,15 +228,11 @@ def evaluar_y_ejecutar_fase1(st, modo, ocupados):
                 qty = ajustar_cantidad_bingx(BINGX_MARGEN_USD, BINGX_LEVERAGE, px, cfg["step_qty"], cfg["min_qty"])
                 tp = round(px * (1.0 + cfg["tp_pct"]), cfg["price_prec"])
                 sl = round(px * (1.0 - cfg["sl_pct"]), cfg["price_prec"])
-                cid = f"AUTO_F1_{sym}_{int(now_ts)}"
+                cid = f"SIM_F1_{sym}_{int(now_ts)}"
                 
-                log.info(f"🚀 [DISPARO FASE 1 RÁPIDA] {sym} @ ${px} | Qty: {qty} tokens | TP: ${tp} | SL: ${sl} | Modo: {modo}")
-                if modo == "REAL":
-                    bingx_establecer_apalancamiento(cfg["bingx_sym"], BINGX_LEVERAGE, "LONG")
-                    r_ord = bingx_abrir_posicion_mercado(cfg["bingx_sym"], "LONG", qty, cid)
-                    if r_ord.get("code") != 0:
-                        log.error(f"Error abriendo {sym} en BingX: {r_ord.get('msg')}")
-                        continue
+                # FASE 1: 100% PAPER TRADING / FANTASMA (Laboratorio sin riesgo real de capital)
+                log.info(f"👻 [SIMULACIÓN FASE 1 FANTASMA] {sym} @ ${px} | Qty: {qty} tokens | TP: ${tp} | SL: ${sl} (Sin orden real en BingX)")
+                # Nunca envía orden a BingX para Fase 1: se ejecuta puramente simulada para comparar rendimientos
                         
                 pos_f1[sym] = {
                     "sym": sym, "bingx_sym": cfg["bingx_sym"], "side": "LONG",

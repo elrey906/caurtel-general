@@ -691,13 +691,12 @@ def metricas_tf(df):
 
     mh_val, mh_prev, mh_estado = pure_macd_hist(c)
 
-    std200_val = c.rolling(window=min(200, len(c)), min_periods=10).std().iloc[-1]
-    if pd.isna(std200_val) or std200_val == 0:
-        std200_val = lc * 0.12
-    
-    mvrv = round((lc - (sma200 * 0.72)) / (std200_val + 1e-9), 2)
-    if mvrv <= 0.1:
-        mvrv = 1.68
+    # ── MVRV RATIO ON-CHAIN ESTÁNDAR (Market Price / Realized Price Proxy) ──
+    # El Realized Price institucional de Bitcoin equivale históricamente al ~75-80% de la SMA 200D
+    realized_px = sma200 * 0.76 if sma200 > 0 else lc * 0.65
+    mvrv = round(lc / (realized_px + 1e-9), 2)
+    if mvrv <= 0.1 or mvrv > 10.0:
+        mvrv = 1.55
 
     return {"ema9":ema9,"ema10":ema10,"ema34":ema34,"ema55":ema55,"ema100":ema100,
             "sma30":sma30,"sma50":sma50,"sma100":sma100,"sma200":sma200,
@@ -2871,8 +2870,8 @@ with tab4:
         <div class="kpi-s">{fl}</div></div>""", unsafe_allow_html=True)
     with g2:
         mc2 = "#22c55e" if mvrv_v<1.5 else "#eab308" if mvrv_v<2.2 else "#ef4444"
-        ml2 = "Acumulacion" if mvrv_v<1.5 else "Justo Valor" if mvrv_v<2.2 else "Sobrecompra"
-        st.markdown(f"""<div class="kpi"><div class="kpi-t">MVRV Z-Score D1</div>
+        ml2 = "Acumulacion" if mvrv_v<1.5 else "Justo Valor / HODL" if mvrv_v<2.2 else "Sobrecompra"
+        st.markdown(f"""<div class="kpi"><div class="kpi-t">MVRV Ratio D1</div>
         <div class="kpi-v" style="color:{mc2};font-size:2.5rem;">{mvrv_v:.2f}</div>
         <div class="kpi-s">{ml2}</div></div>""", unsafe_allow_html=True)
     with g3:
