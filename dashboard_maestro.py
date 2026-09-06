@@ -84,7 +84,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 BINANCE_DIR = os.path.join(BASE_DIR, "BINANCE")
 HERRAMIENTAS_DIR = os.path.join(BASE_DIR, "HERRAMIENTAS")
 DATOS_DIR = os.path.join(BASE_DIR, "DATOS")
-ESTADO_DIR = "/home/h/Escritorio/SEPTIEMBRE/ESTADO"
+ESTADO_DIR = os.path.join(BASE_DIR, "ESTADO")
 
 for d in [DATOS_DIR, ESTADO_DIR]:
     try:
@@ -92,7 +92,7 @@ for d in [DATOS_DIR, ESTADO_DIR]:
     except Exception:
         pass
 
-DIR_SEPTIEMBRE = "/home/h/Escritorio/SEPTIEMBRE"
+DIR_SEPTIEMBRE = BASE_DIR
 for path in [DIR_SEPTIEMBRE, BINANCE_DIR, HERRAMIENTAS_DIR, BASE_DIR]:
     if path not in sys.path:
         sys.path.insert(0, path)
@@ -199,7 +199,7 @@ def verificar_estado_detallado_cerebros():
             "puerto": 8540,
             "mercado": "BingX Perpetuos (11 Blue Chips)",
             "log_file": "LOGS/blue_chips_bot.log",
-            "state_file": "/home/h/Escritorio/SEPTIEMBRE/estado_blue_chips.json"
+            "state_file": os.path.join(BASE_DIR, "estado_blue_chips.json")
         },
         {
             "id": "C2",
@@ -210,7 +210,7 @@ def verificar_estado_detallado_cerebros():
             "puerto": 8545,
             "mercado": "Binance Cross Margin 5X (BTC)",
             "log_file": "LOGS/mega_hibrido_bot.log",
-            "state_file": "/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json"
+            "state_file": os.path.join(BASE_DIR, "estado_mega_hibrido_btc_dual.json")
         },
         {
             "id": "C3",
@@ -221,7 +221,7 @@ def verificar_estado_detallado_cerebros():
             "puerto": 8555,
             "mercado": "BingX Acciones & Cripto",
             "log_file": "HIBRIDO/cazador_trifecta.log",
-            "state_file": "/home/h/Escritorio/SEPTIEMBRE/HIBRIDO/estado_trifecta_hibrido.json"
+            "state_file": os.path.join(BASE_DIR, "HIBRIDO", "estado_trifecta_hibrido.json")
         },
         {
             "id": "HQ",
@@ -232,7 +232,7 @@ def verificar_estado_detallado_cerebros():
             "puerto": 8500,
             "mercado": "Control Maestro Unificado",
             "log_file": "LOGS/dashboard_maestro.log",
-            "state_file": "/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json"
+            "state_file": os.path.join(BASE_DIR, "estado_mega_hibrido_btc_dual.json")
         }
     ]
 
@@ -630,7 +630,7 @@ if binance_ok:
     usdt_net      = next((clean_num(a.get("netAsset",0)) for a in user_assets if a.get("asset")=="USDT"), 0.0)
     btc_real      = next((clean_num(a.get("netAsset",0)) for a in user_assets if a.get("asset")=="BTC"), 0.0)
 else:
-    st_mh = cargar_json("/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json", {})
+    st_mh = cargar_json(os.path.join(BASE_DIR, "estado_mega_hibrido_btc_dual.json"), {})
     collateral = clean_num(st_mh.get("equity_total_usd", 282.58), 282.58)
     margin_level = clean_num(st_mh.get("margin_level_actual", 999.0), 999.0)
     usdt_free = clean_num(st_mh.get("cash_balance_usd", 13.58), 13.58)
@@ -881,9 +881,9 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs([
 with tab1:
     # ── 1. ESCALERA DE METAS PASO A PASO ($100 USD INICIAL -> $8,500 USD) ──────
     # Lectura de saldos reales de Septiembre 2027
-    st_bc = cargar_json("/home/h/Escritorio/SEPTIEMBRE/estado_blue_chips.json", {})
-    st_mh = cargar_json("/home/h/Escritorio/SEPTIEMBRE/estado_mega_hibrido_btc_dual.json", {})
-    st_tf = cargar_json("/home/h/Escritorio/SEPTIEMBRE/HIBRIDO/estado_trifecta_hibrido.json", {})
+    st_bc = cargar_json(os.path.join(BASE_DIR, "estado_blue_chips.json"), {})
+    st_mh = cargar_json(os.path.join(BASE_DIR, "estado_mega_hibrido_btc_dual.json"), {})
+    st_tf = cargar_json(os.path.join(BASE_DIR, "HIBRIDO", "estado_trifecta_hibrido.json"), {})
     
     equidad_bingx_real = 499.38
     pos_bc = st_bc.get("posiciones", {})
