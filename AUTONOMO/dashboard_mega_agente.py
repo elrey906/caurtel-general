@@ -167,7 +167,8 @@ with col_bin:
             <span class='badge-binance'>{'🔒 CANDADO ACTIVO' if len(balas_bin)>=3 else '🟢 BALAS DISPONIBLES'}</span>
         </div>
         <div style='margin-top:8px; font-size:0.85rem; color:#cbd5e1;'>
-            <b>Balas Disparadas:</b> {len(balas_bin)} de 3 ($10 c/u)<br>
+            <b>Balas Disparadas:</b> {len(balas_bin)} de 3 ($20 USD c/u @ 5X)<br>
+            <b>Estrategia:</b> Acumulador Ganar-Ganar (Multi-Timeframe 1D+4H+1H)<br>
             <b>BTC Acumulado:</b> {btc_acum:.5f} BTC<br>
             <b>Costo Promedio:</b> ${costo_prom:,.2f} USD<br>
             <b>🎯 TP Venta / Reciclaje:</b> ${costo_prom * 1.04:,.2f} (+4.0%)

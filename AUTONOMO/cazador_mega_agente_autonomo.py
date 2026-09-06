@@ -395,13 +395,12 @@ def evaluar_y_ejecutar_binance_btc(st, modo):
     px_btc = adn_btc["precio"]
     if px_btc <= 0: return
 
-    # 2. Monitoreo de Venta en TP para reciclar balas
+    # 2. Monitoreo de Venta en TP para reciclar balas (Filosofía Acumulador Ganar-Ganar)
     if len(balas) > 0 and st["btc_costo_promedio"] > 0:
         costo_prom = st["btc_costo_promedio"]
         tp_target = costo_prom * (1.0 + UNIVERSO_BTC_BINANCE["tp_pct"])
-        sl_target = costo_prom * (1.0 - UNIVERSO_BTC_BINANCE["sl_pct"])
         
-        # Take Profit Alcanzado en Binance
+        # Take Profit Alcanzado en Binance (Venta exclusiva en beneficio)
         if px_btc >= tp_target:
             log.info(f"🏆 [BINANCE BTC TAKE PROFIT] BTC @ ${px_btc:,.2f} >= TP ${tp_target:,.2f}. VENDIENDO PARA RECICLAR BALAS.")
             if modo == "REAL":
@@ -414,22 +413,6 @@ def evaluar_y_ejecutar_binance_btc(st, modo):
                 costo_prom, px_btc, margen_total, pnl_usd, "TAKE_PROFIT_RECICLADO_BALAS", "Ciclo Binance"
             )
             # Candado liberado: Se reinician las 3 balas tras cobrar
-            st["binance_btc_balas"] = []
-            st["btc_acumulado_agente"] = 0.0
-            st["btc_costo_promedio"] = 0.0
-            return
-
-        # Stop Loss de Emergencia Colateral
-        elif px_btc <= sl_target:
-            log.warning(f"🛑 [BINANCE BTC STOP LOSS] BTC cayó a ${px_btc:,.2f}. Cortando para proteger Margin Level.")
-            if modo == "REAL":
-                binance_margin_vender_btc(st["btc_acumulado_agente"], f"AUTO_BIN_SL_{int(now_ts)}")
-            pnl_usd = (px_btc - costo_prom) * st["btc_acumulado_agente"]
-            margen_total = len(balas) * BINANCE_MARGEN_USD
-            registrar_operacion_cerrada(
-                "BINANCE_BTC_MARGIN", "BTC", "BINANCE", "BUY_MARGIN",
-                costo_prom, px_btc, margen_total, pnl_usd, "STOP_LOSS_COLATERAL", "Ciclo Binance"
-            )
             st["binance_btc_balas"] = []
             st["btc_acumulado_agente"] = 0.0
             st["btc_costo_promedio"] = 0.0

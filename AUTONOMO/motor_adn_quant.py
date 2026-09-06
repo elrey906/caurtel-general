@@ -108,9 +108,10 @@ def calcular_adn_activo(sym, bingx_sym, tipo="CRIPTO"):
     mecha_inf = float(min(o.iloc[-1], c.iloc[-1]) - l.iloc[-1])
     pct_mecha = (mecha_inf / rango_vela * 100.0) if rango_vela > 0 else 0.0
 
-    # 4. Resample 4H para Order Block y Soporte
+    # 4. Resample 4H y 1D para Order Block, Tendencia y Soporte
     df_1h_indexed = df_1h.set_index('dt')
     df_4h = df_1h_indexed.resample('4h').agg({'open':'first','high':'max','low':'min','close':'last','vol':'sum'}).dropna()
+    df_1d = df_1h_indexed.resample('1D').agg({'open':'first','high':'max','low':'min','close':'last','vol':'sum'}).dropna()
     
     soporte_7d = float(df_1h['low'].tail(72).min()) if len(df_1h) >= 72 else px_actual * 0.95
     dist_soporte = ((px_actual - soporte_7d) / soporte_7d) * 100.0
@@ -132,7 +133,38 @@ def calcular_adn_activo(sym, bingx_sym, tipo="CRIPTO"):
     if abs(dist_soporte) <= 2.5:
         score += 10.0
 
-    gatillo_valido = score >= 70.0 and (macd_estado in ["ROJO_CLARO", "VERDE_CLARO"])
+    # REGLA SNIPER MULTI-TIMEFRAME PARA BTC (1D + 4H + 1H):
+    # En Bitcoin, para acertar el piso sin fallos se exige confluencia de 1D y 4H
+    if sym == "BTC":
+        rsi_4h = 50.0
+        rsi_1d = 50.0
+        if len(df_4h) >= 14:
+            c4 = df_4h["close"]
+            d4 = c4.diff()
+            g4 = d4.clip(lower=0).rolling(14, min_periods=1).mean()
+            l4 = (-d4.clip(upper=0)).rolling(14, min_periods=1).mean()
+            rsi_4h = float((100 - (100 / (1 + (g4 / (l4 + 1e-9))))).iloc[-1])
+            
+        if len(df_1d) >= 14:
+            cd = df_1d["close"]
+            dd = cd.diff()
+            gd = dd.clip(lower=0).rolling(14, min_periods=1).mean()
+            ld = (-dd.clip(upper=0)).rolling(14, min_periods=1).mean()
+            rsi_1d = float((100 - (100 / (1 + (gd / (ld + 1e-9))))).iloc[-1])
+            
+        # Confluencia MTF estricta:
+        # 1D: No en sobrecompra (RSI <= 65)
+        # 4H: En descuento (RSI <= 45 o valle de agotamiento)
+        # 1H: Sobreventa (RSI <= 32) + Martillo/Absorción (>= 45%) + Cierre Verde
+        cond_1d = (rsi_1d <= 65.0)
+        cond_4h = (rsi_4h <= 45.0) or (dist_soporte <= 1.5)
+        cond_1h = (rsi_1h <= 32.0) and (pct_mecha >= 45.0) and (c.iloc[-1] >= o.iloc[-1])
+        
+        gatillo_valido = cond_1d and cond_4h and cond_1h
+        if gatillo_valido:
+            score = 95.0
+    else:
+        gatillo_valido = score >= 70.0 and (macd_estado in ["ROJO_CLARO", "VERDE_CLARO"])
 
     return {
         "sym": sym,

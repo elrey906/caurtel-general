@@ -20,7 +20,7 @@ BINGX_MARGEN_USD = 10.0     # $10 USD margen por trade
 BINGX_LEVERAGE = 10         # 10X apalancamiento
 
 BINANCE_BTC_MAX_BALAS = 3   # Máximo 3 compras de por vida hasta vender en TP
-BINANCE_MARGEN_USD = 10.0   # $10 USD margen por bala
+BINANCE_MARGEN_USD = 20.0   # $20 USD margen por bala (acumulador ganador)
 BINANCE_LEVERAGE = 5        # 5X Cross Margin
 
 # Universo de Activos: FASE 1 (Rápidas - Altcoins de Alto Beta)
@@ -46,14 +46,14 @@ UNIVERSO_FASE2 = [
     {"sym": "MSFT",  "bingx_sym": "NCSKMSFT2USD-USDT",  "tipo": "ACCION", "step_qty": 0.01, "min_qty": 0.01, "price_prec": 2, "tp_pct": 0.045, "sl_pct": 0.025, "max_dias": 25}
 ]
 
-# Universo Bitcoin (Binance Cross Margin 5X)
+# Universo Bitcoin (Binance Cross Margin 5X - Acumulador Ganar-Ganar)
 UNIVERSO_BTC_BINANCE = {
     "sym": "BTC",
     "symbol_binance": "BTCUSDT",
     "tipo": "CRIPTO_MARGIN",
     "step_qty": 0.00001,
     "min_qty": 0.00001,
-    "tp_pct": 0.040,       # +4% TP para reciclar la bala
-    "sl_pct": 0.060,       # -6% SL de protección de colateral
+    "tp_pct": 0.040,       # +4% TP para reciclar la bala (venta en beneficio)
+    "sl_pct": None,        # SIN STOP LOSS EN BINANCE: Acumulador institucional ganar o ganar
     "max_balas": 3
 }
