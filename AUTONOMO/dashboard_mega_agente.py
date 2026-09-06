@@ -90,7 +90,7 @@ col_f1, col_f2, col_bin = st.columns(3)
 with col_f1:
     pos_f1 = st_agente.get("fase1_rapidas_activas", {})
     st.markdown(f"### ⚡ FASE 1: RÁPIDAS ({len(pos_f1)}/3 Ranuras)")
-    st.caption("Caza de mechas y rebotes elásticos (Máx 48 horas · $10 @ 10X)")
+    st.caption("Caza de mechas y rebotes elásticos (Salida en TP/SL Natural · $10 @ 10X)")
     
     for i in range(3):
         syms_f1 = list(pos_f1.keys())
@@ -107,7 +107,7 @@ with col_f1:
                 <div style='margin-top:8px; font-size:0.85rem; color:#cbd5e1;'>
                     <b>Entrada:</b> ${p['entry_px']:,.2f} | <b>Lote:</b> {p['qty_tokens']} tokens<br>
                     <b>🎯 TP:</b> ${p['tp_px']:,.2f} | <b>🛑 SL:</b> ${p['sl_px']:,.2f}<br>
-                    <b>Tiempo activo:</b> {horas:.1f}h / 48h
+                    <b>Tiempo activo:</b> {horas:.1f} horas
                 </div>
             </div>
             """, unsafe_allow_html=True)

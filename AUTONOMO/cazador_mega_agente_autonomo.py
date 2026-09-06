@@ -204,20 +204,6 @@ def evaluar_y_ejecutar_fase1(st, modo, ocupados):
             )
             del pos_f1[sym]
             continue
-            
-        # Time-Stop a las 48h si no hay volumen
-        elif horas_vida >= pos.get("max_horas", 48):
-            log.info(f"⏳ [TIME-STOP 48H F1] {sym} excedió 48h. Abortando posición a mercado.")
-            if modo == "REAL":
-                bingx_cerrar_posicion_mercado(pos["bingx_sym"], "LONG", pos["qty_tokens"])
-                
-            pnl_usd = (px - pos["entry_px"]) * pos["qty_tokens"]
-            registrar_operacion_cerrada(
-                "FASE1_RAPIDA", sym, "BINGX", "LONG", pos["entry_px"], px,
-                pos["margen_usd"], pnl_usd, "TIME_STOP_48H", f"{horas_vida:.1f}h"
-            )
-            del pos_f1[sym]
-            continue
 
     # 2. Evaluación de Nuevas Entradas (Si hay ranura libre < 3)
     candidatos_f1 = []
