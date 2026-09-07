@@ -2344,61 +2344,56 @@ Saldo Inicio del Día: <strong>${total_ini:,.2f} USD</strong> | Meta +1% Hoy: <s
     else:
         falta_sop_txt = f"<span style='color:#f59e0b; font-weight:800;'>⏳ Falta retroceso de ${dist_sop_usd:,.0f} ({dist_sop_pct:+.1f}%)</span>"
 
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,27,75,0.7)); border: 2px solid {sem_col}; border-radius: 16px; padding: 22px; margin-top: 20px; box-shadow: 0 0 30px {sem_col}33;">
-        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;">
-            <div style="display:flex; align-items:center; gap:12px;">
-                <span style="font-size:2.2rem; filter: drop-shadow(0 0 10px {sem_col});">{sem_led}</span>
-                <div>
-                    <span style="background:{sem_col}22; color:{sem_col}; border:1px solid {sem_col}; padding:3px 10px; border-radius:12px; font-weight:800; font-size:0.75rem; text-transform:uppercase;">
-                        {sem_badge}
-                    </span>
-                    <h3 style="margin:4px 0 0 0; font-size:1.4rem; font-weight:900; color:#f8fafc;">
-                        SEMÁFORO DE GATILLO: {sem_tit}
-                    </h3>
-                </div>
-            </div>
-            <div style="text-align:right;">
-                <div style="font-size:0.8rem; color:#94a3b8; font-weight:700;">PREPARACIÓN DE GATILLO</div>
-                <div style="font-size:1.6rem; font-weight:900; color:{sem_col};">{score_gatillo}% LISTO</div>
-            </div>
-        </div>
-
-        <div style="margin: 14px 0 6px 0; background: rgba(0,0,0,0.4); border-radius: 10px; height: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="width: {score_gatillo}%; height: 100%; background: linear-gradient(90deg, #ef4444, #eab308, {sem_col}); border-radius: 10px; transition: width 0.5s ease;"></div>
-        </div>
-        <p style="margin: 0 0 16px 0; font-size: 0.88rem; color: #cbd5e1;">{sem_desc}</p>
-
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
-            <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:0.82rem; font-weight:800; color:#38bdf8;">🎯 1. RSI H4 (INTRADIARIO)</span>
-                    <span style="font-size:0.95rem; font-weight:900; color:#f8fafc;">{rsi_h4_val:.1f} / ≤35.0</span>
-                </div>
-                <div style="font-size:0.8rem; margin: 4px 0;">{falta_rsi_txt}</div>
-                <div style="font-size:0.72rem; color:#94a3b8;">Zona de rebote +3.8% a +6.5%.</div>
-            </div>
-
-            <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:0.82rem; font-weight:800; color:#f472b6;">🌊 2. MACD SQUEEZE</span>
-                    <span style="font-size:0.95rem; font-weight:900; color:#f8fafc;">Valle {macd_h4_num:+.0f}</span>
-                </div>
-                <div style="font-size:0.8rem; margin: 4px 0;">{falta_macd_txt}</div>
-                <div style="font-size:0.72rem; color:#94a3b8;">H1: {badge_valle(macd_h1_est)} | H4: {badge_valle(macd_h4_est)}</div>
-            </div>
-
-            <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                    <span style="font-size:0.82rem; font-weight:800; color:#eab308;">🏛️ 3. SOPORTE 7 DÍAS</span>
-                    <span style="font-size:0.95rem; font-weight:900; color:#f8fafc;">${sop_btc_ref:,.0f} USD</span>
-                </div>
-                <div style="font-size:0.8rem; margin: 4px 0;">{falta_sop_txt}</div>
-                <div style="font-size:0.72rem; color:#94a3b8;">Precio actual BTC: ${btc_price:,.0f} USD</div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    html_semaforo = f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,27,75,0.7)); border: 2px solid {sem_col}; border-radius: 16px; padding: 22px; margin-top: 20px; box-shadow: 0 0 30px {sem_col}33;">
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;">
+<div style="display:flex; align-items:center; gap:12px;">
+<span style="font-size:2.2rem; filter: drop-shadow(0 0 10px {sem_col});">{sem_led}</span>
+<div>
+<span style="background:{sem_col}22; color:{sem_col}; border:1px solid {sem_col}; padding:3px 10px; border-radius:12px; font-weight:800; font-size:0.75rem; text-transform:uppercase;">
+{sem_badge}
+</span>
+<h3 style="margin:4px 0 0 0; font-size:1.4rem; font-weight:900; color:#f8fafc;">
+SEMÁFORO DE GATILLO: {sem_tit}
+</h3>
+</div>
+</div>
+<div style="text-align:right;">
+<div style="font-size:0.8rem; color:#94a3b8; font-weight:700;">PREPARACIÓN DE GATILLO</div>
+<div style="font-size:1.6rem; font-weight:900; color:{sem_col};">{score_gatillo}% LISTO</div>
+</div>
+</div>
+<div style="margin: 14px 0 6px 0; background: rgba(0,0,0,0.4); border-radius: 10px; height: 10px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
+<div style="width: {score_gatillo}%; height: 100%; background: linear-gradient(90deg, #ef4444, #eab308, {sem_col}); border-radius: 10px; transition: width 0.5s ease;"></div>
+</div>
+<p style="margin: 0 0 16px 0; font-size: 0.88rem; color: #cbd5e1;">{sem_desc}</p>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px;">
+<div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+<span style="font-size:0.82rem; font-weight:800; color:#38bdf8;">🎯 1. RSI H4 (INTRADIARIO)</span>
+<span style="font-size:0.95rem; font-weight:900; color:#f8fafc;">{rsi_h4_val:.1f} / ≤35.0</span>
+</div>
+<div style="font-size:0.8rem; margin: 4px 0;">{falta_rsi_txt}</div>
+<div style="font-size:0.72rem; color:#94a3b8;">Zona de rebote +3.8% a +6.5%.</div>
+</div>
+<div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+<span style="font-size:0.82rem; font-weight:800; color:#f472b6;">🌊 2. MACD SQUEEZE</span>
+<span style="font-size:0.95rem; font-weight:900; color:#f8fafc;">Valle {macd_h4_num:+.0f}</span>
+</div>
+<div style="font-size:0.8rem; margin: 4px 0;">{falta_macd_txt}</div>
+<div style="font-size:0.72rem; color:#94a3b8;">H1: {badge_valle(macd_h1_est)} | H4: {badge_valle(macd_h4_est)}</div>
+</div>
+<div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 14px;">
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+<span style="font-size:0.82rem; font-weight:800; color:#eab308;">🏛️ 3. SOPORTE 7 DÍAS</span>
+<span style="font-size:0.95rem; font-weight:900; color:#f8fafc;">${sop_btc_ref:,.0f} USD</span>
+</div>
+<div style="font-size:0.8rem; margin: 4px 0;">{falta_sop_txt}</div>
+<div style="font-size:0.72rem; color:#94a3b8;">Precio actual BTC: ${btc_price:,.0f} USD</div>
+</div>
+</div>
+</div>"""
+    st.markdown(html_semaforo, unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════════
 # TAB 2 — MATRIZ TÁCTICA BINGX (CEREBRO 5 + COBERTURAS)
