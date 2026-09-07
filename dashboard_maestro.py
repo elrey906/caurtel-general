@@ -330,10 +330,96 @@ def obtener_precio_publico(sym="BTCUSDT"):
                 if p > 0: return p
     except Exception: pass
 
-    return 79900.0 if "BTC" in sym else 100.0
+    return 79900.0 if "BTC" in sym else 0.0
 
-
-PLACEHOLDER_SCRIPT = False
+@st.cache_data(ttl=15)
+def auditar_salud_apis_y_precios():
+    """
+    🛡️ AGENTE CENTINELA EN TIEMPO REAL:
+    Audita la latencia y respuesta de BingX, Binance y Yahoo Finance,
+    y valida la coherencia matemática de las cotizaciones en vivo para evitar errores de entrada.
+    """
+    reporte = {
+        "estado": "OPTIMO", # OPTIMO, PRECAUCION, CRITICO
+        "bingx_status": "🟢 OPERATIVO",
+        "bingx_ms": 0,
+        "binance_status": "🟢 OPERATIVO",
+        "binance_ms": 0,
+        "yahoo_status": "🟢 OPERATIVO",
+        "yahoo_ms": 0,
+        "alertas": [],
+        "precios_auditados": {}
+    }
+    
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    # 1. Test BingX
+    t0 = time.time()
+    try:
+        r = requests.get("https://open-api.bingx.com/openApi/swap/v2/quote/ticker?symbol=BTC-USDT", headers=headers, timeout=3).json()
+        reporte["bingx_ms"] = int((time.time() - t0) * 1000)
+        if r.get("code") != 0:
+            reporte["bingx_status"] = "⚠️ AVISO CODIGO"
+            reporte["alertas"].append(f"BingX API devolvió código no-cero: {r.get('code')}")
+    except Exception as e:
+        reporte["bingx_ms"] = int((time.time() - t0) * 1000)
+        reporte["bingx_status"] = "🔴 REINTENTO"
+        reporte["alertas"].append(f"Microcorte o latencia con BingX API")
+        
+    # 2. Test Binance
+    t0 = time.time()
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT", headers=headers, timeout=3).json()
+        reporte["binance_ms"] = int((time.time() - t0) * 1000)
+        if "price" not in r:
+            reporte["binance_status"] = "⚠️ AVISO RESPUESTA"
+            reporte["alertas"].append("Binance API sin respuesta directa")
+    except Exception as e:
+        reporte["binance_ms"] = int((time.time() - t0) * 1000)
+        reporte["binance_status"] = "🔴 REINTENTO"
+        reporte["alertas"].append("Microcorte o latencia con Binance API")
+        
+    # 3. Test Yahoo / Macro
+    t0 = time.time()
+    try:
+        r = requests.get("https://query1.finance.yahoo.com/v8/finance/chart/NVDA?interval=1d&range=1d", headers=headers, timeout=3).json()
+        reporte["yahoo_ms"] = int((time.time() - t0) * 1000)
+    except Exception:
+        reporte["yahoo_ms"] = int((time.time() - t0) * 1000)
+        reporte["yahoo_status"] = "⚠️ LENTO"
+        
+    # 4. Auditoría de precios en vivo críticos
+    cotizaciones = obtener_todas_cotizaciones_en_vivo()
+    activos_check = {
+        "BTC": (50000.0, 150000.0),
+        "NVDA": (180.0, 350.0),
+        "MSFT": (400.0, 650.0),
+        "AMZN": (190.0, 350.0),
+        "GOOGL": (250.0, 450.0),
+        "AVGO": (250.0, 500.0),
+        "TSLA": (200.0, 500.0),
+        "AAPL": (220.0, 420.0)
+    }
+    
+    for sym, (min_p, max_p) in activos_check.items():
+        p = cotizaciones.get(sym, 0.0)
+        if p <= 0:
+            for alt in [f"NCSK{sym}2USD-USDT", f"{sym}-USDT", f"{sym}USDT"]:
+                if cotizaciones.get(alt, 0) > 0:
+                    p = cotizaciones[alt]
+                    break
+        reporte["precios_auditados"][sym] = p
+        if p <= 0:
+            reporte["alertas"].append(f"Precio de #{sym} usando canal de contingencia")
+        elif p < min_p or p > max_p:
+            reporte["alertas"].append(f"⚠️ ANOMALÍA EN #{sym}: Cotización ${p:.2f} fuera de rango de seguridad (${min_p:.0f} - ${max_p:.0f})")
+            
+    if any("🔴" in s for s in [reporte["bingx_status"], reporte["binance_status"]]) or any("ANOMALÍA" in a for a in reporte["alertas"]):
+        reporte["estado"] = "CRITICO"
+    elif reporte["alertas"] or any("⚠️" in s for s in [reporte["bingx_status"], reporte["binance_status"], reporte["yahoo_status"]]):
+        reporte["estado"] = "PRECAUCION"
+        
+    return reporte
 
 # ── UTILIDADES ─────────────────────────────────────────────────────────────
 def clean_num(val, fallback=0.0):
@@ -1197,10 +1283,52 @@ with hdr_col1:
         <span style="color:#94a3b8; font-size:0.8rem;">Hora VET: <strong>{now_vet().strftime('%H:%M:%S')}</strong></span>
     </div>
     """, unsafe_allow_html=True)
-with hdr_col2:
-    if st.button("🔄 ACTUALIZAR EN VIVO AHORA", use_container_width=True, type="primary"):
-        st.cache_data.clear()
-        st.rerun()
+    # ── AGENTE CENTINELA DE SALUD: APIS Y AUDITORÍA DE PRECIOS EN VIVO ──
+    auditoria = auditar_salud_apis_y_precios()
+    est_centinela = auditoria["estado"]
+    
+    if est_centinela == "OPTIMO":
+        bg_cent = "rgba(34, 197, 94, 0.12)"
+        border_cent = "#22c55e"
+        led_cent = "🟢"
+        tit_cent = "AGENTE CENTINELA: APIS 100% OPERATIVAS Y PRECIOS AUDITADOS"
+        sub_cent = "Cotizaciones sincronizadas en tiempo real. Cero anomalías de precios detectadas."
+    elif est_centinela == "PRECAUCION":
+        bg_cent = "rgba(234, 179, 8, 0.15)"
+        border_cent = "#eab308"
+        led_cent = "🟡"
+        tit_cent = "AGENTE CENTINELA: AVISO DE LATENCIA / CANAL DE CONTINGENCIA"
+        sub_cent = "Uno o más feeds presentan latencia. Se activaron rutas de respaldo automáticas."
+    else:
+        bg_cent = "rgba(239, 68, 68, 0.18)"
+        border_cent = "#ef4444"
+        led_cent = "🚨"
+        tit_cent = "ALERTA DEL AGENTE CENTINELA: DESINCRONIZACIÓN O FALLO DE API"
+        sub_cent = "Precaución: Se detectó una inconsistencia de precio o corte de API. Revisar antes de operar."
+
+    alertas_html = ""
+    if auditoria["alertas"]:
+        alertas_items = "".join([f"<li style='margin-bottom:2px;'>{a}</li>" for a in auditoria["alertas"][:3]])
+        alertas_html = f"<ul style='margin:6px 0 0 0; padding-left:18px; font-size:0.78rem; color:#fca5a5;'>{alertas_items}</ul>"
+
+    centinela_banner = f"""<div style="background: {bg_cent}; border: 1px solid {border_cent}; border-radius: 12px; padding: 10px 16px; margin: 10px 0 16px 0; box-shadow: 0 0 15px {border_cent}22;">
+<div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+<div style="display:flex; align-items:center; gap:8px;">
+<span style="font-size:1.3rem;">{led_cent}</span>
+<div>
+<div style="font-size:0.88rem; font-weight:900; color:#f8fafc; letter-spacing:0.5px;">{tit_cent}</div>
+<div style="font-size:0.75rem; color:#cbd5e1;">{sub_cent}</div>
+{alertas_html}
+</div>
+</div>
+<div style="display:flex; align-items:center; gap:10px; font-size:0.75rem; font-weight:800;">
+<span style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); padding:3px 8px; border-radius:8px; color:#38bdf8;">BingX: {auditoria['bingx_ms']}ms</span>
+<span style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); padding:3px 8px; border-radius:8px; color:#f59e0b;">Binance: {auditoria['binance_ms']}ms</span>
+<span style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.1); padding:3px 8px; border-radius:8px; color:#a855f7;">Yahoo: {auditoria['yahoo_ms']}ms</span>
+</div>
+</div>
+</div>"""
+    st.markdown(centinela_banner, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════
 # PESTAÑAS PRINCIPALES (DECLARACIÓN ÚNICA)
