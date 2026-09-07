@@ -4632,20 +4632,32 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
             dir_bg = "background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444;" if is_short else "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
             c_score = asset.get("conviccion_score", asset["heat_score"])
 
+            p_val = clean_num(asset.get("precio", 0.0), 0.0)
+            if p_val <= 0:
+                p_val = max(clean_num(asset.get("ema9", 1.0), 1.0), 0.0001)
+            atr_v = max(clean_num(asset.get('atr14', 0.05 * p_val), 0.05 * p_val), 0.0001)
+            ema9_v = clean_num(asset.get('ema9', p_val), p_val)
+
             if is_short:
-                entry_p = round(max(p_val, (p_val + asset['ema9']) / 2.0), 2)
-                sl_p = round(entry_p + (1.5 * asset['atr14']), 2)
-                tp1_p = round(max(0.01, entry_p - (2.0 * asset['atr14'])), 2)
-                tp2_p = round(max(0.01, entry_p - (3.8 * asset['atr14'])), 2)
-                rr = round((entry_p - tp1_p) / max(0.01, sl_p - entry_p), 2)
+                entry_p = round(max(p_val, (p_val + ema9_v) / 2.0), 4 if p_val < 1.0 else 2)
+                sl_p = round(entry_p + (1.5 * atr_v), 4 if p_val < 1.0 else 2)
+                tp1_p = round(max(0.0001, entry_p - (2.0 * atr_v)), 4 if p_val < 1.0 else 2)
+                tp2_p = round(max(0.0001, entry_p - (3.8 * atr_v)), 4 if p_val < 1.0 else 2)
+                diff_sl = max(0.0001, sl_p - entry_p)
+                rr = round((entry_p - tp1_p) / diff_sl, 2)
                 plan_title = "🔴 ESTRATEGIA OPERATIVA: SHORT EN TECHO"
             else:
-                entry_p = round(min(p_val, (p_val + asset['ema9']) / 2.0), 2)
-                sl_p = round(max(0.01, entry_p - (1.5 * asset['atr14'])), 2)
-                tp1_p = round(entry_p + (2.0 * asset['atr14']), 2)
-                tp2_p = round(entry_p + (3.8 * asset['atr14']), 2)
-                rr = round((tp1_p - entry_p) / max(0.01, entry_p - sl_p), 2)
+                entry_p = round(min(p_val, (p_val + ema9_v) / 2.0), 4 if p_val < 1.0 else 2)
+                sl_p = round(max(0.0001, entry_p - (1.5 * atr_v)), 4 if p_val < 1.0 else 2)
+                tp1_p = round(entry_p + (2.0 * atr_v), 4 if p_val < 1.0 else 2)
+                tp2_p = round(entry_p + (3.8 * atr_v), 4 if p_val < 1.0 else 2)
+                diff_sl = max(0.0001, entry_p - sl_p)
+                rr = round((tp1_p - entry_p) / diff_sl, 2)
                 plan_title = "🟢 ESTRATEGIA OPERATIVA: LONG EN PISO (COMPRA EN DESCUENTO)"
+
+            riesgo_pct = (abs(entry_p - sl_p) / max(0.0001, entry_p)) * 100.0
+            def _f_px(v):
+                return f"${v:,.4f}" if v < 1.0 else f"${v:,.2f}"
 
             st.markdown(f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.92)); border: 2px solid {card_border}; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.6);">
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -4677,10 +4689,10 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
 <div style="background:rgba(15,23,42,0.9); border:1px solid #334155; border-radius:12px; padding:14px;">
 <div style="font-size:0.82rem; font-weight:800; color:{card_border}; margin-bottom:6px;">{plan_title}</div>
 <div style="font-size:0.88rem; color:#cbd5e1; line-height:1.6;">
-• <strong>Entrada Sugerida:</strong> ${entry_p:,.2f}<br>
-• <strong>Stop Loss (1.5 ATR):</strong> ${sl_p:,.2f} (Riesgo: -{abs(entry_p-sl_p)/entry_p*100:.1f}%)<br>
-• <strong>Take Profit 1:</strong> ${tp1_p:,.2f}<br>
-• <strong>Take Profit 2:</strong> ${tp2_p:,.2f}<br>
+• <strong>Entrada Sugerida:</strong> {_f_px(entry_p)}<br>
+• <strong>Stop Loss (1.5 ATR):</strong> {_f_px(sl_p)} (Riesgo: -{riesgo_pct:.1f}%)<br>
+• <strong>Take Profit 1:</strong> {_f_px(tp1_p)}<br>
+• <strong>Take Profit 2:</strong> {_f_px(tp2_p)}<br>
 • <strong>Ratio Riesgo/Beneficio:</strong> <strong style="color:{card_border};">1 : {rr}</strong>
 </div>
 </div>
