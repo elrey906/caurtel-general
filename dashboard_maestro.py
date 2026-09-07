@@ -2478,25 +2478,25 @@ with tab2:
             "nombre": "NVIDIA",
             "tipo": "ACCION",
             "exchange": "BingX Perpetuos",
-            "precio": 128.50,
-            "sop_7d": 122.10,
-            "res_7d": 136.80,
-            "ema55": 125.40,
-            "ema200": 118.00,
-            "ob_dom": "4H Bullish OB $123.00 – $124.50",
+            "precio": 232.54,
+            "sop_7d": 218.40,
+            "res_7d": 244.50,
+            "ema55": 226.20,
+            "ema200": 210.00,
+            "ob_dom": "4H Bullish OB $224.00 – $227.00",
             "rsi": 49.5,
             "stoch_k": 22.1,
             "adx": 31.0,
             "score": 82,
             "recom": "LONG (Continuación Alcista)",
-            "long_trigger": 125.20,
-            "long_sl": 118.50,
-            "long_tp1": 132.80,
-            "long_tp2": 146.50,
-            "short_trigger": 136.00,
-            "short_sl": 142.50,
-            "short_tp1": 129.50,
-            "short_tp2": 116.50,
+            "long_trigger": 226.50,
+            "long_sl": 215.00,
+            "long_tp1": 242.00,
+            "long_tp2": 264.00,
+            "short_trigger": 243.50,
+            "short_sl": 252.00,
+            "short_tp1": 230.00,
+            "short_tp2": 216.00,
             "nota": "EMA 55 testeada con mecha inferior de absorción. Entrada óptima con SL ajustado."
         },
         {
@@ -2530,7 +2530,7 @@ with tab2:
             "nombre": "Microsoft",
             "tipo": "ACCION",
             "exchange": "BingX Perpetuos",
-            "precio": 502.08,
+            "precio": 501.23,
             "sop_7d": 482.00,
             "res_7d": 525.00,
             "ema55": 491.50,
@@ -2608,7 +2608,7 @@ with tab2:
             "nombre": "AMD",
             "tipo": "ACCION",
             "exchange": "BingX Perpetuos",
-            "precio": 477.00,
+            "precio": 477.50,
             "sop_7d": 436.08,
             "res_7d": 508.00,
             "ema55": 455.00,
@@ -2634,78 +2634,78 @@ with tab2:
             "nombre": "Amazon",
             "tipo": "ACCION",
             "exchange": "BingX Perpetuos",
-            "precio": 182.40,
-            "sop_7d": 174.50,
-            "res_7d": 194.00,
-            "ema55": 178.20,
-            "ema200": 170.00,
-            "ob_dom": "1D Bullish OB $176.00 – $178.00",
+            "precio": 258.50,
+            "sop_7d": 246.60,
+            "res_7d": 275.00,
+            "ema55": 252.00,
+            "ema200": 236.00,
+            "ob_dom": "1D Bullish OB $248.00 – $252.00",
             "rsi": 50.5,
             "stoch_k": 38.0,
             "adx": 22.0,
             "score": 70,
-            "recom": "ESPERA (ADX < 23 Lateral)",
-            "long_trigger": 178.00,
-            "long_sl": 171.00,
-            "long_tp1": 187.00,
-            "long_tp2": 204.00,
-            "short_trigger": 193.50,
-            "short_sl": 201.00,
-            "short_tp1": 186.00,
-            "short_tp2": 172.00,
-            "nota": "Mercado lateral; esperar ruptura con volumen institucional o retroceso a soporte."
+            "recom": "LONG (Soporte Institucional)",
+            "long_trigger": 252.00,
+            "long_sl": 246.64,
+            "long_tp1": 268.90,
+            "long_tp2": 288.00,
+            "short_trigger": 274.00,
+            "short_sl": 282.00,
+            "short_tp1": 256.00,
+            "short_tp2": 242.00,
+            "nota": "Posición activa con SL en $246.64. Objetivo TP1 en $268.90."
         },
         {
             "sym": "AAPL",
             "nombre": "Apple",
             "tipo": "ACCION",
             "exchange": "BingX Perpetuos",
-            "precio": 224.30,
-            "sop_7d": 218.00,
-            "res_7d": 236.00,
-            "ema55": 221.50,
-            "ema200": 210.00,
-            "ob_dom": "1W Bullish OB $216.00 – $219.50",
+            "precio": 319.90,
+            "sop_7d": 304.50,
+            "res_7d": 335.00,
+            "ema55": 312.00,
+            "ema200": 295.00,
+            "ob_dom": "1W Bullish OB $306.00 – $310.00",
             "rsi": 47.0,
             "stoch_k": 26.0,
             "adx": 24.5,
             "score": 68,
             "recom": "LONG (Consolidación Favorable)",
-            "long_trigger": 221.00,
-            "long_sl": 214.00,
-            "long_tp1": 229.00,
-            "long_tp2": 245.00,
-            "short_trigger": 235.00,
-            "short_sl": 243.00,
-            "short_tp1": 227.00,
-            "short_tp2": 211.00,
-            "nota": "Soporte institucional sólido en $218.00. R:R favorable para swing trading."
+            "long_trigger": 312.00,
+            "long_sl": 304.00,
+            "long_tp1": 328.00,
+            "long_tp2": 348.00,
+            "short_trigger": 334.00,
+            "short_sl": 344.00,
+            "short_tp1": 318.00,
+            "short_tp2": 300.00,
+            "nota": "Soporte institucional sólido en $304.50. R:R favorable para swing trading."
         },
         {
             "sym": "GOOGL",
             "nombre": "Alphabet",
             "tipo": "ACCION",
             "exchange": "BingX Perpetuos",
-            "precio": 164.20,
-            "sop_7d": 158.40,
-            "res_7d": 174.00,
-            "ema55": 161.00,
-            "ema200": 152.00,
-            "ob_dom": "1D Bullish OB $159.00 – $161.00",
+            "precio": 338.80,
+            "sop_7d": 322.80,
+            "res_7d": 356.00,
+            "ema55": 332.00,
+            "ema200": 315.00,
+            "ob_dom": "1D Bullish OB $325.00 – $330.00",
             "rsi": 48.5,
             "stoch_k": 30.0,
             "adx": 21.5,
             "score": 65,
-            "recom": "ESPERA (Baja Volatilidad)",
-            "long_trigger": 160.80,
-            "long_sl": 154.50,
-            "long_tp1": 168.00,
-            "long_tp2": 182.00,
-            "short_trigger": 173.50,
-            "short_sl": 180.50,
-            "short_tp1": 166.50,
-            "short_tp2": 153.00,
-            "nota": "Esperar confluencia de giro en Stoch RSI y volumen expansivo."
+            "recom": "LONG (Rebote en Soporte)",
+            "long_trigger": 331.00,
+            "long_sl": 322.79,
+            "long_tp1": 348.00,
+            "long_tp2": 372.00,
+            "short_trigger": 355.00,
+            "short_sl": 366.00,
+            "short_tp1": 338.00,
+            "short_tp2": 320.00,
+            "nota": "Posición activa con SL en $322.79. Buscar rebote institucional hacia $348.00."
         },
         {
             "sym": "DJI",
@@ -2760,6 +2760,35 @@ with tab2:
             "nota": "🚀 ACTIVO DE ÉLITE IA/SPACEX: ADX en 32.1 con fuerte tendencia alcista y MACD acelerando en verde."
         }
     ]
+
+    # ── SINCRONIZACIÓN DINÁMICA DE PRECIOS EN VIVO PARA TODAS LAS TARJETAS ──
+    for act in activos_detalle:
+        s = act["sym"]
+        # Buscar en cotizaciones en vivo (BingX TradFi o Yahoo Finance)
+        px_live = 0.0
+        for cand in [f"NCSK{s}2USD-USDT", f"{s}-USDT", s, f"{s}USDT"]:
+            p_cand = obtener_precio_publico(cand)
+            if p_cand > 0:
+                px_live = p_cand
+                break
+        
+        if px_live > 0 and act["precio"] > 0:
+            factor = px_live / act["precio"]
+            act["precio"] = px_live
+            # Si el precio en vivo difiere significativamente del base, ajustar niveles tácticos
+            if abs(factor - 1.0) > 0.03:
+                act["sop_7d"] = round(act["sop_7d"] * factor, 2)
+                act["res_7d"] = round(act["res_7d"] * factor, 2)
+                act["ema55"] = round(act["ema55"] * factor, 2)
+                act["ema200"] = round(act["ema200"] * factor, 2)
+                act["long_trigger"] = round(act["long_trigger"] * factor, 2)
+                act["long_sl"] = round(act["long_sl"] * factor, 2)
+                act["long_tp1"] = round(act["long_tp1"] * factor, 2)
+                act["long_tp2"] = round(act["long_tp2"] * factor, 2)
+                act["short_trigger"] = round(act["short_trigger"] * factor, 2)
+                act["short_sl"] = round(act["short_sl"] * factor, 2)
+                act["short_tp1"] = round(act["short_tp1"] * factor, 2)
+                act["short_tp2"] = round(act["short_tp2"] * factor, 2)
 
     # Filtros y controles
     col_f1, col_f2 = st.columns([2, 1])
