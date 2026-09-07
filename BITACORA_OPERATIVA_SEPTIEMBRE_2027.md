@@ -172,3 +172,38 @@ Para estar 100% seguros de que el sistema se mantiene en reposo absoluto sin rea
    * Creado el guardián vigilante `guardian_anti_apagones.sh`.
    * Integrado en `iniciar_solo_septiembre.sh` y en el autostart de GNOME (`cazador-septiembre.desktop`).
    * En caso de corte eléctrico o reinicio de la PC, los 4 cerebros y sus respectivos dashboards arrancan y se reanudan solos al encender la máquina.
+
+---
+
+## 📈 6. ACTUALIZACIÓN PINE SCRIPT V6 & SESIÓN ESTRATÉGICA (06/SEP/2026 - 22:10 VET)
+* **Archivo Actualizado:** [`cazador_radar_multiactivos_v6.pine`](file:///home/h/Escritorio/SEPTIEMBRE/cazador_radar_multiactivos_v6.pine)
+* **Mejoras Técnicas Integradas en Gráfico:**
+  1. **EMAs 10 y 55 con Nube de Tendencia Dinámica:**
+     * `EMA 10` Rápida (Azul Cyan `#00e5ff`) como línea de vida del precio.
+     * `EMA 55` Lenta (Naranja Fuego `#ff6d00`) como soporte/resistencia institucional.
+     * Nube dinámica entre medias (azul alcista / roja bajista).
+  2. **Cálculo y Trazado de POC Diario (Point of Control de Volumen):**
+     * **POC Diario en Desarrollo (Hoy):** Línea dorada continua calculada mediante acumulación y ponderación de volumen intradía.
+     * **POC Día Anterior (dPOC):** Línea discontinua naranja del nivel de mayor volumen del día cerrado (imán de liquidez y soporte institucional).
+  3. **Motor Institucional de Ondas de Elliott (1D Diario & 1W Semanal):**
+     * Algoritmo fractal de pivotes para ciclos impulsivos `(0)` a `(5)` y fases correctivas `(A)`, `(B)`, `(C)`.
+     * **Filtro Anti-Gráfico Sucio:** Memoria dinámica que elimina trazos y etiquetas obsoletas, manteniendo la pantalla 100% limpia.
+     * **Controles en Configuración (⚙️):** Interruptores on/off independientes para mostrar/ocultar ondas 1D, ondas 1W, líneas conectoras y etiquetas.
+
+### 🧠 Bitácora de Análisis y Planes Estratégicos de la Sesión
+* **Bitcoin (BTCUSDT):**
+  * **Diario (1D):** Rebote de Onda A a `$82,612`, consolidación en Onda B sobre la EMA 10 (`$79,230`). Muro de resistencia en `$82.6k`.
+  * **Semanal (1W):** Doble suelo institucional confirmado en `1W (B)` (`$58,000`). MACD semanal girando con histograma verde en aceleración. Testeando la EMA 55 semanal y resistencia mayor en `$82,612`.
+* **Microsoft (MSFT):**
+  * **Estructura 1D y 1H:** Formación de Doble Techo en Onda B (`$518`), ruptura bajista de la EMA 10 (`$504`) con oscilador en *AGOTAMIENTO/TRAMPA*, iniciando Onda C correctiva rumbo a la EMA 55 Diaria (`$465 - $470`).
+  * **Protocolo de Rescate para Short Atrapado en $470:**
+    * Al tocar `$470.00` (Punto de Entrada / Breakeven): Cerrar el **75% - 80%** de la posición inmediatamente para eliminar el 100% del riesgo.
+    * Con el 20%-25% restante: Mover Stop Loss a Breakeven (`$470.00`) y Take Profit en `$464 - $462` ante la alta probabilidad de rebote violento por compras institucionales en la EMA 55 diaria.
+
+---
+
+## 🔒 ESTADO FINAL DE CIERRE Y REPOSO
+* **Sistemas y Guardián:** 🟢 Operando en segundo plano bajo vigilancia.
+* **Integridad de Código:** Cero errores de sintaxis, scripts probados y validados.
+* **Próxima Revisión:** Apertura de mercado lunes por la mañana.
+

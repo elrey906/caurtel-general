@@ -1,5 +1,5 @@
 //@version=6
-indicator("🔥 CAZADOR PRO - RADAR MULTI-ACTIVOS & SCREENER V6", shorttitle="🔥 RADAR_MULTI_V6", overlay=true, precision=2)
+indicator("🔥 CAZADOR PRO - RADAR MULTI-ACTIVOS & SCREENER V6", shorttitle="🔥 RADAR_MULTI_V6", overlay=true, precision=2, max_lines_count=500, max_labels_count=500)
 
 // =============================================================================
 // 🔥 ECOSISTEMA CAZADOR PRO — FASE 2: RADAR MULTI-ACTIVOS V6
@@ -13,6 +13,8 @@ indicator("🔥 CAZADOR PRO - RADAR MULTI-ACTIVOS & SCREENER V6", shorttitle="�
 // 5. Score Cuántico de Confluencia Institucional (0% a 100%).
 // 6. Estado Operativo y Gatillos Sniper en Vivo.
 // 7. Alertas Globales Unificadas Multi-Activo.
+// 8. Trazado en Gráfico: EMA 10, EMA 55, Nube Dinámica y POC Diario (Hoy y Ayer).
+// 9. Ondas de Elliott Institucionales (1D Diario & 1W Semanal) con filtro On/Off.
 // =============================================================================
 
 // -----------------------------------------------------------------------------
@@ -34,7 +36,21 @@ custom_tf = input.timeframe("", "Temporalidad (Vacío = Gráfico Actual)", group
 grp_hud = "🖥️ 3. DISEÑO Y POSICIÓN DEL RADAR"
 hud_pos = input.string("Arriba Derecha", "Posición de la Tabla", options=["Arriba Derecha", "Abajo Derecha", "Arriba Izquierda", "Abajo Izquierda"], group=grp_hud)
 hud_size = input.string("Pequeño", "Tamaño de Texto", options=["Diminuto", "Pequeño", "Normal"], group=grp_hud)
-highlight_best = input.bool(true, "Resaltar Máxima Oportunidad", group=grp_hud)
+
+grp_chart = "📈 4. TRAZADO EN GRÁFICO (EMAs & POC DIARIO)"
+show_ema10    = input.bool(true, "Mostrar EMA 10 Rápida (Azul Cyan)", group=grp_chart)
+show_ema55    = input.bool(true, "Mostrar EMA 55 Lenta (Naranja Fuego)", group=grp_chart)
+show_cloud    = input.bool(true, "Mostrar Nube Dinámica entre EMAs", group=grp_chart)
+show_poc_dev  = input.bool(true, "Mostrar POC Diario Actual (Línea Dorada)", group=grp_chart)
+show_poc_prev = input.bool(true, "Mostrar POC Día Anterior (dPOC Institucional)", group=grp_chart)
+
+grp_ew = "🌊 5. ONDAS DE ELLIOTT (DIARIO & SEMANAL)"
+show_ew_d     = input.bool(true,  "Activar Ondas de Elliott (Diario 1D)", group=grp_ew)
+show_ew_w     = input.bool(false, "Activar Ondas de Elliott (Semanal 1W)", group=grp_ew)
+ew_show_lines = input.bool(true,  "Dibujar Líneas Conectoras de Ondas", group=grp_ew)
+ew_show_lbls  = input.bool(true,  "Mostrar Etiquetas de Ondas (1,2,3,4,5 / A,B,C)", group=grp_ew)
+ew_len_d      = input.int(5, "Sensibilidad Pivots Diario (Velas)", minval=2, maxval=20, group=grp_ew)
+ew_len_w      = input.int(4, "Sensibilidad Pivots Semanal (Velas)", minval=2, maxval=20, group=grp_ew)
 
 // -----------------------------------------------------------------------------
 // 2. FUNCIÓN DE CÁLCULO DE CONFLUENCIA POR ACTIVO
@@ -145,7 +161,6 @@ else if hud_size == "Normal"
     cell_sz := size.normal
 
 // Tabla: 6 columnas x 10 filas
-// Columnas: [ACTIVO, PRECIO, VAR %, TENDENCIA/RSI, SQUEEZE, CONFLUENCIA / ESTADO]
 var table radar = table.new(t_pos, 6, 10, 
                             bgcolor = color.new(#090d16, 15), 
                             border_width = 1, 
@@ -153,11 +168,7 @@ var table radar = table.new(t_pos, 6, 10,
                             frame_width = 2, 
                             frame_color = color.new(#00e5ff, 40))
 
-// Función auxiliar para renderizar fila
 f_render_row(table tbl, int row_idx, string full_sym, float price_val, float chg_val, int score_l, int score_s, bool is_sqz, bool is_bull, float rsi_v) =>
-    // Limpieza de nombre
-    string clean_name = full_sym
-    // Estado y colores
     string st_text = "⏳ ESPERA"
     color  st_col  = #8b949e
     color  st_bg   = color.new(#161b22, 0)
@@ -181,20 +192,16 @@ f_render_row(table tbl, int row_idx, string full_sym, float price_val, float chg
         st_text := "📉 BAJISTA (" + str.tostring(score_s) + "%)"
         st_col  := #ff9100
 
-    // Tendencia EMA + RSI
     string ema_rsi_txt = (is_bull ? "🟢 ALC | " : "🔴 BAJ | ") + "RSI " + str.tostring(rsi_v, "#.0")
     color ema_rsi_col = is_bull ? #00e5ff : #ff9100
 
-    // Squeeze estado
     string sqz_txt = is_sqz ? "🔒 CARGANDO" : "⚡ LIBRE"
     color sqz_col = is_sqz ? #ff9100 : #00e676
 
-    // Var % color
     color chg_col = chg_val >= 0 ? #00e676 : #ff1744
     string chg_str = (chg_val >= 0 ? "+" : "") + str.tostring(chg_val, "#.2") + "%"
 
-    // Relleno de celdas
-    table.cell(tbl, 0, row_idx, clean_name, bgcolor=color.new(#161b22, 0), text_color=color.white, text_size=cell_sz, text_halign=text.align_left)
+    table.cell(tbl, 0, row_idx, full_sym, bgcolor=color.new(#161b22, 0), text_color=color.white, text_size=cell_sz, text_halign=text.align_left)
     table.cell(tbl, 1, row_idx, str.tostring(price_val, "#.2"), bgcolor=color.new(#0d1117, 0), text_color=#e6edf3, text_size=cell_sz, text_halign=text.align_right)
     table.cell(tbl, 2, row_idx, chg_str, bgcolor=color.new(#0d1117, 0), text_color=chg_col, text_size=cell_sz, text_halign=text.align_right)
     table.cell(tbl, 3, row_idx, ema_rsi_txt, bgcolor=color.new(#0d1117, 0), text_color=ema_rsi_col, text_size=cell_sz, text_halign=text.align_center)
@@ -202,7 +209,6 @@ f_render_row(table tbl, int row_idx, string full_sym, float price_val, float chg
     table.cell(tbl, 5, row_idx, st_text, bgcolor=st_bg, text_color=st_col, text_size=cell_sz, text_halign=text.align_center)
 
 if barstate.islast
-    // Encabezado Principal (Fila 0)
     table.cell(radar, 0, 0, "🔥 CAZADOR PRO", bgcolor=color.new(#1f242c, 0), text_color=#00e5ff, text_size=cell_sz, text_halign=text.align_center)
     table.cell(radar, 1, 0, "RADAR INSTITUCIONAL", bgcolor=color.new(#1f242c, 0), text_color=#ffffff, text_size=cell_sz, text_halign=text.align_center)
     table.cell(radar, 2, 0, "FASE 2 MULTI-ACTIVOS", bgcolor=color.new(#1f242c, 0), text_color=#ffd600, text_size=cell_sz, text_halign=text.align_center)
@@ -210,7 +216,6 @@ if barstate.islast
     table.cell(radar, 4, 0, "SQUEEZE", bgcolor=color.new(#1f242c, 0), text_color=#ffffff, text_size=cell_sz, text_halign=text.align_center)
     table.cell(radar, 5, 0, "ESTADO / SEÑAL", bgcolor=color.new(#1f242c, 0), text_color=#00e676, text_size=cell_sz, text_halign=text.align_center)
 
-    // Renderizado de Filas 1 a 8
     f_render_row(radar, 1, "1. BTC",  c01, chg01, sl01, ss01, sq01, be01, rsi01)
     f_render_row(radar, 2, "2. ETH",  c02, chg02, sl02, ss02, sq02, be02, rsi02)
     f_render_row(radar, 3, "3. SOL",  c03, chg03, sl03, ss03, sq03, be03, rsi03)
@@ -220,7 +225,6 @@ if barstate.islast
     f_render_row(radar, 7, "7. TSLA", c07, chg07, sl07, ss07, sq07, be07, rsi07)
     f_render_row(radar, 8, "8. SPY",  c08, chg08, sl08, ss08, sq08, be08, rsi08)
 
-    // Fila 9: Pie de Telemetría
     table.cell(radar, 0, 9, "TOTAL 8 ACTIVOS", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=cell_sz, text_halign=text.align_center)
     table.cell(radar, 1, 9, "ECOSISTEMA", bgcolor=color.new(#161b22, 0), text_color=#8b949e, text_size=cell_sz, text_halign=text.align_center)
     table.cell(radar, 2, 9, "CAZADOR PRO", bgcolor=color.new(#161b22, 0), text_color=#00e5ff, text_size=cell_sz, text_halign=text.align_center)
@@ -231,7 +235,6 @@ if barstate.islast
 // -----------------------------------------------------------------------------
 // 5. ALERTAS GLOBALES UNIFICADAS MULTI-ACTIVO
 // -----------------------------------------------------------------------------
-// Alerta si cualquiera de los 8 activos activa señal de compra institucional
 bool global_buy_trigger = (sl01 >= 75 and not (sl01[1] >= 75)) or 
                           (sl02 >= 75 and not (sl02[1] >= 75)) or 
                           (sl03 >= 75 and not (sl03[1] >= 75)) or 
@@ -257,3 +260,168 @@ alertcondition(global_buy_trigger,
 alertcondition(global_sell_trigger, 
                title="💥 RADAR FASE 2: Gatillo Venta Multi-Activo", 
                message="💥 RADAR CAZADOR PRO: ¡Señal de VENTA/SHORT INSTITUCIONAL (≥75% Confluencia) detectada en la cesta de activos! Revisa la tabla en pantalla.")
+
+// -----------------------------------------------------------------------------
+// 6. TRAZADO DE EMAs 10 / 55 Y POC DIARIO EN EL GRÁFICO ACTIVO
+// -----------------------------------------------------------------------------
+// EMAs del activo en pantalla
+ema10_local = ta.ema(close, 10)
+ema55_local = ta.ema(close, 55)
+
+p_ema10 = plot(show_ema10 ? ema10_local : na, "EMA 10 Rápida (Azul Cyan)", color=color.new(#00e5ff, 0), linewidth=2)
+p_ema55 = plot(show_ema55 ? ema55_local : na, "EMA 55 Lenta (Naranja Fuego)", color=color.new(#ff6d00, 0), linewidth=2)
+
+cloud_col = ema10_local > ema55_local ? color.new(#00e5ff, 85) : color.new(#ff3d00, 85)
+fill(p_ema10, p_ema55, color=show_cloud ? cloud_col : color.new(color.black, 100), title="Nube Dinámica EMAs 10/55")
+
+// Cálculo del POC Diario (Point of Control de la Sesión)
+is_new_day = ta.change(time("D")) != 0
+var float[] poc_arr_p = array.new_float(0)
+var float[] poc_arr_v = array.new_float(0)
+var float poc_dev = na
+var float poc_prev = na
+
+if is_new_day
+    if array.size(poc_arr_p) > 0 and not na(poc_dev)
+        poc_prev := poc_dev
+    array.clear(poc_arr_p)
+    array.clear(poc_arr_v)
+
+if timeframe.isintraday
+    float bar_hlc = (high + low + close) / 3.0
+    float v_split = nz(volume) / 3.0
+    
+    array.push(poc_arr_p, high)
+    array.push(poc_arr_v, v_split)
+    
+    array.push(poc_arr_p, low)
+    array.push(poc_arr_v, v_split)
+    
+    array.push(poc_arr_p, bar_hlc)
+    array.push(poc_arr_v, v_split)
+    
+    int sz_pts = array.size(poc_arr_p)
+    if sz_pts > 0
+        float min_p = array.min(poc_arr_p)
+        float max_p = array.max(poc_arr_p)
+        float diff_p = max_p - min_p
+        
+        if diff_p > 0
+            var float[] bin_v = array.new_float(50, 0.0)
+            array.fill(bin_v, 0.0)
+            float bin_w = diff_p / 50.0
+            
+            for i = 0 to sz_pts - 1
+                float p_val = array.get(poc_arr_p, i)
+                float v_val = array.get(poc_arr_v, i)
+                int idx = math.min(math.floor((p_val - min_p) / bin_w), 49)
+                array.set(bin_v, idx, array.get(bin_v, idx) + v_val)
+            
+            float best_v = -1.0
+            int best_idx = 0
+            for b = 0 to 49
+                float cur_bv = array.get(bin_v, b)
+                if cur_bv > best_v
+                    best_v := cur_bv
+                    best_idx := b
+            
+            poc_dev := min_p + (best_idx + 0.5) * bin_w
+        else
+            poc_dev := bar_hlc
+
+// Trazado de Niveles POC en el gráfico
+plot(show_poc_dev and timeframe.isintraday ? poc_dev : na, 
+     title="🟡 POC Diario Actual (En Desarrollo)", 
+     color=color.new(#ffd700, 0), 
+     linewidth=2, 
+     style=plot.style_line)
+
+plot(show_poc_prev and timeframe.isintraday ? poc_prev : na, 
+     title="🟠 POC Día Anterior (dPOC Institucional)", 
+     color=color.new(#ff9100, 0), 
+     linewidth=2, 
+     style=plot.style_linebr)
+
+// -----------------------------------------------------------------------------
+// 7. MOTOR DE ONDAS DE ELLIOTT (DIARIO 1D Y SEMANAL 1W)
+// -----------------------------------------------------------------------------
+type EWPivot
+    float price
+    int   bar_tm
+    bool  is_high
+
+// Función interna para calcular y dibujar la estructura de Ondas
+f_process_elliott_waves(string tf_req, int p_len, color l_col, color bg_col, string tf_label, bool is_active) =>
+    if is_active
+        float ph = request.security(syminfo.tickerid, tf_req, ta.pivothigh(high, p_len, p_len), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+        float pl = request.security(syminfo.tickerid, tf_req, ta.pivotlow(low, p_len, p_len), gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+        int   t_ph = request.security(syminfo.tickerid, tf_req, time[p_len], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+        int   t_pl = request.security(syminfo.tickerid, tf_req, time[p_len], gaps=barmerge.gaps_off, lookahead=barmerge.lookahead_off)
+
+        var EWPivot[] pivots_arr = array.new<EWPivot>(0)
+        var line[]    lines_arr  = array.new_line(0)
+        var label[]   labels_arr = array.new_label(0)
+
+        // Registrar nuevo Pivot High si cambia
+        if not na(ph)
+            int sz = array.size(pivots_arr)
+            if sz == 0 or array.get(pivots_arr, sz - 1).price != ph or not array.get(pivots_arr, sz - 1).is_high
+                array.push(pivots_arr, EWPivot.new(ph, t_ph, true))
+                if array.size(pivots_arr) > 12
+                    array.shift(pivots_arr)
+
+        // Registrar nuevo Pivot Low si cambia
+        if not na(pl)
+            int sz = array.size(pivots_arr)
+            if sz == 0 or array.get(pivots_arr, sz - 1).price != pl or array.get(pivots_arr, sz - 1).is_high
+                array.push(pivots_arr, EWPivot.new(pl, t_pl, false))
+                if array.size(pivots_arr) > 12
+                    array.shift(pivots_arr)
+
+        // En la última barra del gráfico, redibujar de forma limpia
+        if barstate.islast and array.size(pivots_arr) >= 4
+            // Eliminar trazos anteriores para evitar gráfico sucio
+            for ln in lines_arr
+                line.delete(ln)
+            array.clear(lines_arr)
+
+            for lbl in labels_arr
+                label.delete(lbl)
+            array.clear(labels_arr)
+
+            int total = array.size(pivots_arr)
+            int start_idx = math.max(0, total - 8)
+
+            string[] w_tags = array.new_string(8)
+            array.set(w_tags, 0, "(0)")
+            array.set(w_tags, 1, "(1)")
+            array.set(w_tags, 2, "(2)")
+            array.set(w_tags, 3, "(3)")
+            array.set(w_tags, 4, "(4)")
+            array.set(w_tags, 5, "(5)")
+            array.set(w_tags, 6, "(A)")
+            array.set(w_tags, 7, "(B)")
+
+            for i = start_idx to total - 1
+                EWPivot cur_p = array.get(pivots_arr, i)
+                int wave_num = i - start_idx
+                string wave_text = wave_num < array.size(w_tags) ? array.get(w_tags, wave_num) : ""
+
+                // Líneas entre ondas
+                if ew_show_lines and i > start_idx
+                    EWPivot prev_p = array.get(pivots_arr, i - 1)
+                    line nl = line.new(x1=prev_p.bar_tm, y1=prev_p.price, x2=cur_p.bar_tm, y2=cur_p.price, 
+                                       xloc=xloc.bar_time, color=l_col, width=2, style=line.style_dashed)
+                    array.push(lines_arr, nl)
+
+                // Etiquetas sobre los pivotes
+                if ew_show_lbls and wave_text != ""
+                    lbl_style = cur_p.is_high ? label.style_label_down : label.style_label_up
+                    label n_lbl = label.new(x=cur_p.bar_tm, y=cur_p.price, text=tf_label + " " + wave_text, 
+                                            xloc=xloc.bar_time, style=lbl_style, 
+                                            color=bg_col, textcolor=color.white, size=size.small)
+                    array.push(labels_arr, n_lbl)
+
+// Ejecutar cálculo de Ondas para Diario (1D) y Semanal (1W)
+f_process_elliott_waves("1D", ew_len_d, color.new(#00e5ff, 0), color.new(#00838f, 0), "1D", show_ew_d)
+f_process_elliott_waves("1W", ew_len_w, color.new(#e040fb, 0), color.new(#7b1fa2, 0), "1W", show_ew_w)

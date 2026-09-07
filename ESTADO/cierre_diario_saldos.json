@@ -1,69 +1,17 @@
 {
     "historial": [
         {
-            "fecha": "2026-08-30",
-            "binance_usd": 182.18,
-            "bingx_usd": 486.83,
-            "total_usd": 669.01,
-            "total_inicio_dia": 669.01,
-            "target_1pct_usd": 675.7,
-            "pnl_diario_usd": 0.0,
-            "pnl_diario_pct": 0.0,
-            "pnl_binance_usd": 0.0,
-            "pnl_bingx_usd": 0.0,
-            "meta_alcanzada": false
-        },
-        {
-            "fecha": "2026-08-31",
-            "binance_usd": 192.49,
-            "bingx_usd": 494.67,
-            "total_usd": 687.16,
-            "total_inicio_dia": 669.01,
-            "target_1pct_usd": 675.7,
-            "pnl_diario_usd": 18.15,
-            "pnl_diario_pct": 2.71,
-            "pnl_binance_usd": 10.31,
-            "pnl_bingx_usd": 7.84,
-            "meta_alcanzada": true
-        },
-        {
-            "fecha": "2026-09-01",
-            "binance_usd": 279.44,
-            "bingx_usd": 500.1,
-            "total_usd": 779.54,
-            "total_inicio_dia": 779.54,
-            "target_1pct_usd": 787.33,
-            "pnl_diario_usd": 0.0,
-            "pnl_diario_pct": 0.0,
-            "pnl_binance_usd": 0.0,
-            "pnl_bingx_usd": 0.0,
-            "meta_alcanzada": false
-        },
-        {
-            "fecha": "2026-09-05",
-            "binance_usd": 263.25,
-            "bingx_usd": 530.0,
-            "total_usd": 793.25,
-            "total_inicio_dia": 779.54,
-            "target_1pct_usd": 787.34,
-            "pnl_diario_usd": 13.71,
-            "pnl_diario_pct": 1.76,
-            "pnl_binance_usd": -16.19,
-            "pnl_bingx_usd": 29.9,
-            "meta_alcanzada": true
-        },
-        {
             "fecha": "2026-09-06",
             "binance_usd": 267.76,
             "bingx_usd": 550.0,
             "total_usd": 817.76,
-            "total_inicio_dia": 793.25,
-            "target_1pct_usd": 801.18,
-            "pnl_diario_usd": 24.51,
-            "pnl_diario_pct": 3.09,
-            "pnl_binance_usd": 4.51,
-            "pnl_bingx_usd": 20.0,
-            "meta_alcanzada": true
+            "total_inicio_dia": 817.76,
+            "target_1pct_usd": 825.94,
+            "pnl_diario_usd": 0.0,
+            "pnl_diario_pct": 0.0,
+            "pnl_binance_usd": 0.0,
+            "pnl_bingx_usd": 0.0,
+            "meta_alcanzada": false
         }
     ]
 }
