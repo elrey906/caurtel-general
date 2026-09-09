@@ -1,0 +1,40 @@
+{
+  "timestamp": 1788992783.467196,
+  "fecha_str": "2026-09-09 22:26:23 UTC",
+  "dxy": {
+    "valor": 99.2,
+    "estado": "DÓLAR DÉBIL (VIENTO A FAVOR)",
+    "tendencia": "BAJISTA",
+    "soporte_clave": 98.8,
+    "resistencia_clave": 100.5
+  },
+  "usdt": {
+    "mcap_b": 185.4,
+    "dominancia_pct": 7.6,
+    "estado": "PÓLVORA SECA MÁXIMA ($185B USD EN RECAMARA)"
+  },
+  "btc": {
+    "precio": 80014.2,
+    "variacion_24h": 0.25
+  },
+  "catalizadores": {
+    "cpi": {
+      "nombre": "🇺🇸 Publicación IPC / Inflación EE.UU.",
+      "fecha": "11 de Septiembre de 2026 (08:30 ET)",
+      "horas_restantes": 38,
+      "texto_restante": "1d 14h"
+    },
+    "fomc": {
+      "nombre": "🏛️ Decisión de Tipos de Interés FOMC (Fed)",
+      "fecha": "16 de Septiembre de 2026 (14:00 ET)",
+      "horas_restantes": 163,
+      "texto_restante": "6d 19h",
+      "probabilidad_pausa": "68% (Mantener 3.50% - 3.75%)",
+      "probabilidad_subida": "22% (+25 pb)",
+      "probabilidad_bajada": "10% (-25 pb)"
+    }
+  },
+  "semaforo": "VERDE",
+  "veredicto": "🟢 VENTANA INSTITUCIONAL RISK-ON: DXY bajo 100 + $185B en USDT listos para desplegarse.",
+  "accion_sugerida": "Luz verde total para las señales de Cazador Pro. El viento macro sopla a favor de BTC y Cripto."
+}

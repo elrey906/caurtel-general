@@ -2547,376 +2547,76 @@ with tab2:
     </div>
     """, unsafe_allow_html=True)
 
-    # 12 Activos Oficiales con su ADN Cuantitativo completo
-    activos_detalle = [
-        {
-            "sym": "BTC",
-            "nombre": "Bitcoin",
-            "tipo": "CRIPTO",
-            "exchange": "Binance Cross Margin 5X",
-            "precio": btc_price,
-            "sop_7d": btc_price * 0.965,
-            "res_7d": btc_price * 1.045,
-            "ema55": btc_price * 0.978,
-            "ema200": btc_price * 0.940,
-            "ob_dom": f"1W OB ${btc_price*0.96:,.0f} – ${btc_price*0.975:,.0f}",
-            "rsi": 54.2,
-            "stoch_k": 28.4,
-            "adx": 34.5,
-            "score": analisis_btc.get("score_general", 78),
-            "recom": "LONG (Acumulación en Soportes)",
-            "long_trigger": btc_price * 0.972,
-            "long_sl": btc_price * 0.935,
-            "long_tp1": btc_price * 1.035,
-            "long_tp2": btc_price * 1.110,
-            "short_trigger": btc_price * 1.040,
-            "short_sl": btc_price * 1.075,
-            "short_tp1": btc_price * 0.985,
-            "short_tp2": btc_price * 0.915,
-            "nota": "Priorizar compras límite en Soporte 7D y retrocesos a EMA 55."
-        },
-        {
-            "sym": "AVGO",
-            "nombre": "Broadcom",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 357.34,
-            "sop_7d": 341.20,
-            "res_7d": 378.50,
-            "ema55": 348.80,
-            "ema200": 332.00,
-            "ob_dom": "1D Bullish OB $342.00 – $346.50",
-            "rsi": 46.8,
-            "stoch_k": 18.2,
-            "adx": 29.4,
-            "score": 88,
-            "recom": "LONG (Rebote en Descuento)",
-            "long_trigger": 348.50,
-            "long_sl": 328.00,
-            "long_tp1": 368.50,
-            "long_tp2": 408.00,
-            "short_trigger": 376.00,
-            "short_sl": 394.00,
-            "short_tp1": 358.00,
-            "short_tp2": 322.00,
-            "nota": "Stoch RSI en sobreventa extrema (%K < 20). Operación institucional de alta confluencia."
-        },
-        {
-            "sym": "NVDA",
-            "nombre": "NVIDIA",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 232.54,
-            "sop_7d": 218.40,
-            "res_7d": 244.50,
-            "ema55": 226.20,
-            "ema200": 210.00,
-            "ob_dom": "4H Bullish OB $224.00 – $227.00",
-            "rsi": 49.5,
-            "stoch_k": 22.1,
-            "adx": 31.0,
-            "score": 82,
-            "recom": "LONG (Continuación Alcista)",
-            "long_trigger": 226.50,
-            "long_sl": 215.00,
-            "long_tp1": 242.00,
-            "long_tp2": 264.00,
-            "short_trigger": 243.50,
-            "short_sl": 252.00,
-            "short_tp1": 230.00,
-            "short_tp2": 216.00,
-            "nota": "EMA 55 testeada con mecha inferior de absorción. Entrada óptima con SL ajustado."
-        },
-        {
-            "sym": "TSLA",
-            "nombre": "Tesla",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 354.15,
-            "sop_7d": 311.65,
-            "res_7d": 372.00,
-            "ema55": 332.00,
-            "ema200": 298.00,
-            "ob_dom": "1D Bullish OB $320.00 – $328.00",
-            "rsi": 53.0,
-            "stoch_k": 32.5,
-            "adx": 38.2,
-            "score": 80,
-            "recom": "LONG (Momentum Fuerte)",
-            "long_trigger": 338.00,
-            "long_sl": 311.65,
-            "long_tp1": 368.00,
-            "long_tp2": 418.00,
-            "short_trigger": 371.00,
-            "short_sl": 395.00,
-            "short_tp1": 348.00,
-            "short_tp2": 302.00,
-            "nota": "Posición activa en BingX. Proteger ganancias en TP1 y mover SL a Break-Even."
-        },
-        {
-            "sym": "MSFT",
-            "nombre": "Microsoft",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 501.23,
-            "sop_7d": 482.00,
-            "res_7d": 525.00,
-            "ema55": 491.50,
-            "ema200": 465.00,
-            "ob_dom": "1W Bullish OB $485.00 – $492.00",
-            "rsi": 51.2,
-            "stoch_k": 34.0,
-            "adx": 26.8,
-            "score": 78,
-            "recom": "LONG (Short Manual Protegido)",
-            "long_trigger": 494.00,
-            "long_sl": 482.00,
-            "long_tp1": 512.00,
-            "long_tp2": 548.00,
-            "short_trigger": 524.00,
-            "short_sl": 542.00,
-            "short_tp1": 506.00,
-            "short_tp2": 470.00,
-            "nota": "🔒 BLINDAJE: El SHORT manual de MSFT es intocable para los bots. Compras permitidas en soporte."
-        },
-        {
-            "sym": "QQQ",
-            "nombre": "Nasdaq 100 ETF",
-            "tipo": "ETF",
-            "exchange": "BingX Perpetuos",
-            "precio": 475.20,
-            "sop_7d": 462.00,
-            "res_7d": 492.00,
-            "ema55": 468.50,
-            "ema200": 448.00,
-            "ob_dom": "1D Bullish OB $464.00 – $467.50",
-            "rsi": 52.4,
-            "stoch_k": 36.0,
-            "adx": 25.4,
-            "score": 76,
-            "recom": "LONG (Soporte Índice)",
-            "long_trigger": 469.00,
-            "long_sl": 458.00,
-            "long_tp1": 482.00,
-            "long_tp2": 508.00,
-            "short_trigger": 491.00,
-            "short_sl": 504.00,
-            "short_tp1": 478.00,
-            "short_tp2": 452.00,
-            "nota": "Excelente para cobertura macro con bajo deslizamiento."
-        },
-        {
-            "sym": "META",
-            "nombre": "Meta Platforms",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 615.00,
-            "sop_7d": 578.10,
-            "res_7d": 642.00,
-            "ema55": 592.00,
-            "ema200": 550.00,
-            "ob_dom": "1D Bullish OB $582.00 – $590.00",
-            "rsi": 55.0,
-            "stoch_k": 42.0,
-            "adx": 30.5,
-            "score": 74,
-            "recom": "ESPERA (Cerca de Resistencia)",
-            "long_trigger": 592.00,
-            "long_sl": 572.00,
-            "long_tp1": 622.00,
-            "long_tp2": 672.00,
-            "short_trigger": 640.00,
-            "short_sl": 662.00,
-            "short_tp1": 618.00,
-            "short_tp2": 574.00,
-            "nota": "Esperar pullback hacia EMA 55 antes de gatillar nuevo Long."
-        },
-        {
-            "sym": "AMD",
-            "nombre": "AMD",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 477.50,
-            "sop_7d": 436.08,
-            "res_7d": 508.00,
-            "ema55": 455.00,
-            "ema200": 420.00,
-            "ob_dom": "4H Bullish OB $448.00 – $454.00",
-            "rsi": 48.0,
-            "stoch_k": 25.5,
-            "adx": 28.0,
-            "score": 72,
-            "recom": "LONG (Descuento Táctico)",
-            "long_trigger": 458.00,
-            "long_sl": 436.00,
-            "long_tp1": 485.00,
-            "long_tp2": 535.00,
-            "short_trigger": 506.00,
-            "short_sl": 528.00,
-            "short_tp1": 484.00,
-            "short_tp2": 440.00,
-            "nota": "Posición activa con SL protegido en $436.08. Buscar TP1 en $483.48."
-        },
-        {
-            "sym": "AMZN",
-            "nombre": "Amazon",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 258.50,
-            "sop_7d": 246.60,
-            "res_7d": 275.00,
-            "ema55": 252.00,
-            "ema200": 236.00,
-            "ob_dom": "1D Bullish OB $248.00 – $252.00",
-            "rsi": 50.5,
-            "stoch_k": 38.0,
-            "adx": 22.0,
-            "score": 70,
-            "recom": "LONG (Soporte Institucional)",
-            "long_trigger": 252.00,
-            "long_sl": 246.64,
-            "long_tp1": 268.90,
-            "long_tp2": 288.00,
-            "short_trigger": 274.00,
-            "short_sl": 282.00,
-            "short_tp1": 256.00,
-            "short_tp2": 242.00,
-            "nota": "Posición activa con SL en $246.64. Objetivo TP1 en $268.90."
-        },
-        {
-            "sym": "AAPL",
-            "nombre": "Apple",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 319.90,
-            "sop_7d": 304.50,
-            "res_7d": 335.00,
-            "ema55": 312.00,
-            "ema200": 295.00,
-            "ob_dom": "1W Bullish OB $306.00 – $310.00",
-            "rsi": 47.0,
-            "stoch_k": 26.0,
-            "adx": 24.5,
-            "score": 68,
-            "recom": "LONG (Consolidación Favorable)",
-            "long_trigger": 312.00,
-            "long_sl": 304.00,
-            "long_tp1": 328.00,
-            "long_tp2": 348.00,
-            "short_trigger": 334.00,
-            "short_sl": 344.00,
-            "short_tp1": 318.00,
-            "short_tp2": 300.00,
-            "nota": "Soporte institucional sólido en $304.50. R:R favorable para swing trading."
-        },
-        {
-            "sym": "GOOGL",
-            "nombre": "Alphabet",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 338.80,
-            "sop_7d": 322.80,
-            "res_7d": 356.00,
-            "ema55": 332.00,
-            "ema200": 315.00,
-            "ob_dom": "1D Bullish OB $325.00 – $330.00",
-            "rsi": 48.5,
-            "stoch_k": 30.0,
-            "adx": 21.5,
-            "score": 65,
-            "recom": "LONG (Rebote en Soporte)",
-            "long_trigger": 331.00,
-            "long_sl": 322.79,
-            "long_tp1": 348.00,
-            "long_tp2": 372.00,
-            "short_trigger": 355.00,
-            "short_sl": 366.00,
-            "short_tp1": 338.00,
-            "short_tp2": 320.00,
-            "nota": "Posición activa con SL en $322.79. Buscar rebote institucional hacia $348.00."
-        },
-        {
-            "sym": "DJI",
-            "nombre": "Dow Jones Ind.",
-            "tipo": "INDICE",
-            "exchange": "BingX Perpetuos",
-            "precio": 41200.0,
-            "sop_7d": 40400.0,
-            "res_7d": 42100.0,
-            "ema55": 40850.0,
-            "ema200": 39500.0,
-            "ob_dom": "1W Bullish OB $40200 – $40600",
-            "rsi": 56.0,
-            "stoch_k": 48.0,
-            "adx": 27.0,
-            "score": 62,
-            "recom": "ESPERA (Cerca de Máximos)",
-            "long_trigger": 40750.0,
-            "long_sl": 39950.0,
-            "long_tp1": 41650.0,
-            "long_tp2": 43150.0,
-            "short_trigger": 42050.0,
-            "short_sl": 42850.0,
-            "short_tp1": 41250.0,
-            "short_tp2": 39750.0,
-            "nota": "Índice cerca de zona alta; riesgo de falso rompimiento. Priorizar shorts tácticos o esperar soporte."
-        },
-        {
-            "sym": "SPCX",
-            "nombre": "Space X (Pre-IPO / AI)",
-            "tipo": "ACCION",
-            "exchange": "BingX Perpetuos",
-            "precio": 150.84,
-            "sop_7d": 133.09,
-            "res_7d": 165.00,
-            "ema55": 142.50,
-            "ema200": 128.00,
-            "ob_dom": "1D Bullish OB $132.00 – $136.50",
-            "rsi": 65.1,
-            "stoch_k": 58.0,
-            "adx": 32.1,
-            "score": 84,
-            "recom": "LONG (Compra Sniper / Impulso)",
-            "long_trigger": 146.50,
-            "long_sl": 135.00,
-            "long_tp1": 165.00,
-            "long_tp2": 190.00,
-            "short_trigger": 168.00,
-            "short_sl": 178.00,
-            "short_tp1": 150.00,
-            "short_tp2": 133.00,
-            "nota": "🚀 ACTIVO DE ÉLITE IA/SPACEX: ADX en 32.1 con fuerte tendencia alcista y MACD acelerando en verde."
-        }
-    ]
+    # ═══════════════════════════════════════════════════════════════════
+    # v3.0 — MOTOR 100% DINÁMICO: PRECIOS, RSI, MACD, ADX, OB, NIVELES EN VIVO
+    # ═══════════════════════════════════════════════════════════════════
+    _V3_TTL = 60  # Cache de 60s para no re-calcular en cada rerun de Streamlit
+    _ahora  = time.time()
+    if (st.session_state.get("v3_cache") is None or
+            (_ahora - st.session_state.get("v3_ts", 0)) > _V3_TTL):
+        try:
+            import importlib, sys as _sys
+            _v3_path = os.path.join(BASE_DIR, "AUTONOMO")
+            if _v3_path not in _sys.path:
+                _sys.path.insert(0, _v3_path)
+            import motor_senales_v3 as _mv3
+            importlib.reload(_mv3)
+            st.session_state["v3_cache"] = _mv3.run_motor_v3()
+            st.session_state["v3_ts"]    = _ahora
+        except Exception as _e_v3:
+            if "v3_cache" not in st.session_state:
+                st.warning(f"\u26a0\ufe0f Motor v3 no disponible: {_e_v3}")
+    _señales_v3 = st.session_state.get("v3_cache", [])
 
-    # ── SINCRONIZACIÓN DINÁMICA DE PRECIOS EN VIVO PARA TODAS LAS TARJETAS ──
-    for act in activos_detalle:
-        s = act["sym"]
-        # Buscar en cotizaciones en vivo (BingX TradFi o Yahoo Finance)
-        px_live = 0.0
-        for cand in [f"NCSK{s}2USD-USDT", f"{s}-USDT", s, f"{s}USDT"]:
-            p_cand = obtener_precio_publico(cand)
-            if p_cand > 0:
-                px_live = p_cand
-                break
-        
-        if px_live > 0 and act["precio"] > 0:
-            factor = px_live / act["precio"]
-            act["precio"] = px_live
-            # Si el precio en vivo difiere significativamente del base, ajustar niveles tácticos
-            if abs(factor - 1.0) > 0.03:
-                act["sop_7d"] = round(act["sop_7d"] * factor, 2)
-                act["res_7d"] = round(act["res_7d"] * factor, 2)
-                act["ema55"] = round(act["ema55"] * factor, 2)
-                act["ema200"] = round(act["ema200"] * factor, 2)
-                act["long_trigger"] = round(act["long_trigger"] * factor, 2)
-                act["long_sl"] = round(act["long_sl"] * factor, 2)
-                act["long_tp1"] = round(act["long_tp1"] * factor, 2)
-                act["long_tp2"] = round(act["long_tp2"] * factor, 2)
-                act["short_trigger"] = round(act["short_trigger"] * factor, 2)
-                act["short_sl"] = round(act["short_sl"] * factor, 2)
-                act["short_tp1"] = round(act["short_tp1"] * factor, 2)
-                act["short_tp2"] = round(act["short_tp2"] * factor, 2)
+    _NOMBRES = {"BTC":"Bitcoin","ETH":"Ethereum","SOL":"Solana","AVGO":"Broadcom",
+                "NVDA":"NVIDIA","TSLA":"Tesla","MSFT":"Microsoft","META":"Meta Platforms",
+                "AMD":"AMD","AMZN":"Amazon","AAPL":"Apple","GOOGL":"Alphabet","QQQ":"Nasdaq 100 ETF"}
+
+    activos_detalle = []
+    for _s in _señales_v3:
+        _px = _s.get("precio", 0.0)
+        activos_detalle.append({
+            "sym":           _s["sym"],
+            "nombre":        _NOMBRES.get(_s["sym"], _s["sym"]),
+            "tipo":          _s.get("tipo", "CRIPTO"),
+            "exchange":      _s.get("exchange", "BingX"),
+            "precio":        _px,
+            "sop_7d":        _s.get("sop_7d", _px * 0.96),
+            "res_7d":        _s.get("res_7d", _px * 1.05),
+            "ema55":         _s.get("ema55",  _px * 0.985),
+            "ema200":        _s.get("ema55",  _px * 0.94),
+            "ob_dom":        _s.get("ob_dom", "N/A"),
+            "rsi":           _s.get("rsi_1h", 50.0),
+            "stoch_k":       _s.get("stoch_k", 50.0),
+            "adx":           _s.get("adx", 0.0),
+            "score":         _s.get("score", 50),
+            "recom":         _s.get("recom", "\u26aa NEUTRO"),
+            "long_trigger":  _s.get("long_trigger",  _px * 0.985),
+            "long_sl":       _s.get("long_sl",       _px * 0.96),
+            "long_tp1":      _s.get("long_tp1",      _px * 1.015),
+            "long_tp2":      _s.get("long_tp2",      _px * 1.05),
+            "short_trigger": _s.get("short_trigger", _px * 1.02),
+            "short_sl":      _s.get("short_sl",      _px * 1.05),
+            "short_tp1":     _s.get("short_tp1",     _px * 0.99),
+            "short_tp2":     _s.get("short_tp2",     _px * 0.96),
+            "nota": (f"RSI 1H: {_s.get('rsi_1h',50):.1f} | "
+                     f"RSI 4H: {_s.get('rsi_4h',50):.1f} | "
+                     f"MACD: {_s.get('macd_estado','?')} | "
+                     f"ADX: {_s.get('adx',0):.1f} | "
+                     f"Stoch: {_s.get('stoch_k',50):.1f} | "
+                     f"ATR: {_s.get('atr',0):.4f}"),
+        })
+
+    if not activos_detalle:
+        activos_detalle = [{"sym":"BTC","nombre":"Bitcoin","tipo":"CRIPTO",
+            "exchange":"Binance 5X","precio":btc_price,"sop_7d":btc_price*.965,
+            "res_7d":btc_price*1.045,"ema55":btc_price*.978,"ema200":btc_price*.94,
+            "ob_dom":"Motor v3 no cargó","rsi":50.0,"stoch_k":50.0,"adx":0.0,"score":50,
+            "recom":"\u26aa NEUTRO","long_trigger":btc_price*.985,"long_sl":btc_price*.95,
+            "long_tp1":btc_price*1.02,"long_tp2":btc_price*1.05,
+            "short_trigger":btc_price*1.04,"short_sl":btc_price*1.07,
+            "short_tp1":btc_price*.99,"short_tp2":btc_price*.96,
+            "nota":"Motor v3 no disponible. Reinicia el dashboard."}]
 
     # Filtros y controles
     col_f1, col_f2 = st.columns([2, 1])
