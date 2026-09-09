@@ -117,7 +117,19 @@ except Exception:
     pass
 
 try:
-    from binance_api_manager import obtener_datos_margin_account, obtener_precio_actual as _b_obtener_precio
+    # v3.0: usar conector_exchanges.py directamente
+    import sys as _sys_bam, os as _os_bam
+    _bam_path = _os_bam.path.join(_os_bam.path.dirname(_os_bam.path.abspath(__file__)), "AUTONOMO")
+    if _bam_path not in _sys_bam.path:
+        _sys_bam.path.insert(0, _bam_path)
+    from conector_exchanges import binance_margin_account_info as _bam_info
+    def obtener_datos_margin_account():
+        try:
+            return _bam_info()
+        except Exception as _e_bam:
+            return {"error": str(_e_bam)}
+    def obtener_precio_actual(sym="BTCUSDT"):
+        return obtener_precio_publico(sym)
     def obtener_precio_actual(sym="BTCUSDT"):
         p = None
         try:
@@ -5070,78 +5082,67 @@ with tab10:
     st.subheader("🎯 Oportunidades de Élite: Entradas, TP1, TP2 y Stop Loss Exactos")
     st.caption("Filtrado matemático por Score de Convicción Quant ≥ 80 pts con parámetros de ejecución listos para operar.")
 
-    e_col1, e_col2, e_col3 = st.columns(3)
-    with e_col1:
-        st.markdown("""
-        <div style="background:rgba(15,23,42,0.95); border:2px solid #38bdf8; border-radius:16px; padding:18px; box-shadow:0 0 20px rgba(56,189,248,0.15);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">Alphabet (Google)</span>
-                <span style="background:#22c55e; color:#090d16; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">🟢 COMPRA (LONG)</span>
-            </div>
-            <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
-                <span style="font-size:2rem; font-weight:900; color:#38bdf8;">$338.83</span>
-                <span style="font-size:0.8rem; color:#22c55e; font-weight:700;">SUELO INSTITUCIONAL</span>
-            </div>
-            <div style="background:rgba(56,189,248,0.08); border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
-                <div style="color:#f8fafc;">💵 <strong>Entrada:</strong> <strong style="color:#38bdf8;">$338.00 – $338.80</strong></div>
-                <div style="color:#f8fafc;">🎯 <strong>TP 1 (50% + BE):</strong> <strong style="color:#ffd600;">$348.50</strong> (+2.8%)</div>
-                <div style="color:#f8fafc;">🏆 <strong>TP 2 (Swing):</strong> <strong style="color:#22c55e;">$358.00</strong> (+5.7%)</div>
-                <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">$331.50</strong> (-2.2%)</div>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
-                <span>🎯 Convicción: <strong style="color:#22c55e;">99.0/100</strong> (RSI 23.3)</span>
-                <span>📦 Lote: <strong style="color:#38bdf8;">$10 @ 10X</strong></span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # ─── TARJETAS ÉLITE DINÁMICAS (Motor v3.0) ───────────────────────────────
+    # Toma las 3 mejores señales del motor v3: 2 LONG extremos + 1 SHORT extremo
+    _v3_all  = st.session_state.get("v3_cache", [])
+    _longs   = [x for x in _v3_all if x.get("score", 0) >= 80 and "LONG" in x.get("recom","")]
+    _shorts  = [x for x in _v3_all if x.get("score", 0) <= 35 and "SHORT" in x.get("recom","")]
+    _elite_cards = (_longs[:2] + _shorts[:1]) or _v3_all[:3]
 
-    with e_col2:
-        st.markdown("""
-        <div style="background:rgba(15,23,42,0.95); border:2px solid #ef4444; border-radius:16px; padding:18px; box-shadow:0 0 20px rgba(239,68,68,0.15);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">Meta Platforms</span>
-                <span style="background:#ef4444; color:#fff; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">🔴 VENTA (SHORT)</span>
-            </div>
-            <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
-                <span style="font-size:2rem; font-weight:900; color:#ef4444;">$614.22</span>
-                <span style="font-size:0.8rem; color:#ef4444; font-weight:700;">TECHO EXTREMO</span>
-            </div>
-            <div style="background:rgba(239,68,68,0.08); border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
-                <div style="color:#f8fafc;">💵 <strong>Entrada Short:</strong> <strong style="color:#ef4444;">$614.00 – $616.00</strong></div>
-                <div style="color:#f8fafc;">🎯 <strong>TP 1 (50% + BE):</strong> <strong style="color:#ffd600;">$595.00</strong> (-3.1%)</div>
-                <div style="color:#f8fafc;">🏆 <strong>TP 2 (EMA 55):</strong> <strong style="color:#22c55e;">$572.00</strong> (-6.8%)</div>
-                <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">$628.00</strong> (+2.2%)</div>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
-                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0/100</strong> (RSI 77.1)</span>
-                <span>📦 Lote: <strong style="color:#ef4444;">$10 @ 10X</strong></span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with e_col3:
-        st.markdown("""
-        <div style="background:rgba(15,23,42,0.95); border:2px solid #ef4444; border-radius:16px; padding:18px; box-shadow:0 0 20px rgba(239,68,68,0.15);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">Avalanche (AVAX)</span>
-                <span style="background:#ef4444; color:#fff; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">🔴 VENTA (SHORT)</span>
-            </div>
-            <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
-                <span style="font-size:2rem; font-weight:900; color:#ef4444;">$7.77</span>
-                <span style="font-size:0.8rem; color:#ef4444; font-weight:700;">SOBRECOMPRA 81.2</span>
-            </div>
-            <div style="background:rgba(239,68,68,0.08); border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
-                <div style="color:#f8fafc;">💵 <strong>Entrada Short:</strong> <strong style="color:#ef4444;">$7.75 – $7.80</strong></div>
-                <div style="color:#f8fafc;">🎯 <strong>TP 1 (50% + BE):</strong> <strong style="color:#ffd600;">$7.35</strong> (-5.4%)</div>
-                <div style="color:#f8fafc;">🏆 <strong>TP 2 (EMA 55):</strong> <strong style="color:#22c55e;">$6.90</strong> (-11.2%)</div>
-                <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">$8.15</strong> (+4.8%)</div>
-            </div>
-            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
-                <span>🎯 Convicción: <strong style="color:#ef4444;">99.0/100</strong> (RSI 81.2)</span>
-                <span>📦 Lote: <strong style="color:#ef4444;">$10 @ 10X</strong></span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    if not _elite_cards:
+        st.info("⏳ Calculando señales en tiempo real… Haz clic en 'Recargar Datos' si persiste.")
+    else:
+        _ec_cols = st.columns(len(_elite_cards))
+        for _idx_ec, _ec in enumerate(_elite_cards):
+            _is_long_ec = "LONG" in _ec.get("recom","")
+            _px_ec    = _ec.get("precio", 0)
+            _sc_ec    = _ec.get("score",  50)
+            _bc_ec    = "#22c55e" if _is_long_ec else "#ef4444"
+            _label_ec = "🟢 COMPRA (LONG)" if _is_long_ec else "🔴 VENTA (SHORT)"
+            _suelo_ec = "SUELO INSTITUCIONAL" if _is_long_ec else "TECHO EXTREMO"
+            if _is_long_ec:
+                _entry_lo = _ec.get("long_trigger",  _px_ec*0.99)
+                _entry_hi = _ec.get("ema10",         _px_ec*1.00)
+                _tp1_ec   = _ec.get("long_tp1",      _px_ec*1.02)
+                _tp2_ec   = _ec.get("long_tp2",      _px_ec*1.05)
+                _sl_ec    = _ec.get("long_sl",        _px_ec*0.96)
+                _tp1_pct  = (_tp1_ec/_px_ec-1)*100 if _px_ec>0 else 0
+                _tp2_pct  = (_tp2_ec/_px_ec-1)*100 if _px_ec>0 else 0
+                _sl_pct   = (_sl_ec/_px_ec-1)*100  if _px_ec>0 else 0
+                _entry_txt= f"Entrada Long: <strong style=\'color:{_bc_ec};\'>${_entry_lo:,.2f} – ${_entry_hi:,.2f}</strong>"
+            else:
+                _entry_lo = _ec.get("short_trigger", _px_ec*1.01)
+                _entry_hi = _ec.get("ema10",          _px_ec*1.02)
+                _tp1_ec   = _ec.get("short_tp1",      _px_ec*0.97)
+                _tp2_ec   = _ec.get("short_tp2",      _px_ec*0.94)
+                _sl_ec    = _ec.get("short_sl",        _px_ec*1.04)
+                _tp1_pct  = (_tp1_ec/_px_ec-1)*100 if _px_ec>0 else 0
+                _tp2_pct  = (_tp2_ec/_px_ec-1)*100 if _px_ec>0 else 0
+                _sl_pct   = (_sl_ec/_px_ec-1)*100  if _px_ec>0 else 0
+                _entry_txt= f"Entrada Short: <strong style=\'color:{_bc_ec};\'>${_entry_lo:,.2f} – ${_entry_hi:,.2f}</strong>"
+            _rsi_ec = _ec.get("rsi_1h", 50)
+            with _ec_cols[_idx_ec]:
+                st.markdown(f"""
+                <div style="background:rgba(15,23,42,0.95); border:2px solid {_bc_ec}; border-radius:16px; padding:18px; box-shadow:0 0 20px {_bc_ec}33;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:900; color:#f8fafc; font-size:1.1rem;">{_ec.get("sym","?")} ({_ec.get("tipo","?")})</span>
+                        <span style="background:{_bc_ec}; color:#fff; font-size:0.7rem; font-weight:900; padding:3px 8px; border-radius:8px;">{_label_ec}</span>
+                    </div>
+                    <div style="display:flex; align-items:baseline; gap:8px; margin:6px 0;">
+                        <span style="font-size:2rem; font-weight:900; color:{_bc_ec};">${_px_ec:,.2f}</span>
+                        <span style="font-size:0.8rem; color:{_bc_ec}; font-weight:700;">{_suelo_ec}</span>
+                    </div>
+                    <div style="background:{_bc_ec}14; border-radius:10px; padding:10px; margin:8px 0; font-size:0.85rem; line-height:1.6;">
+                        <div style="color:#f8fafc;">💵 <strong>{_entry_txt}</strong></div>
+                        <div style="color:#f8fafc;">🎯 <strong>TP 1 (50%+BE):</strong> <strong style="color:#ffd600;">${_tp1_ec:,.2f}</strong> ({_tp1_pct:+.1f}%)</div>
+                        <div style="color:#f8fafc;">🏆 <strong>TP 2 (EMA 55):</strong> <strong style="color:#22c55e;">${_tp2_ec:,.2f}</strong> ({_tp2_pct:+.1f}%)</div>
+                        <div style="color:#f8fafc;">🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${_sl_ec:,.2f}</strong> ({_sl_pct:+.1f}%)</div>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:#94a3b8; border-top:1px solid #334155; padding-top:6px;">
+                        <span>🎯 Convicción: <strong style="color:{_bc_ec};">{_sc_ec}/100</strong> (RSI {_rsi_ec:.1f})</span>
+                        <span>📦 Lote: <strong style="color:{_bc_ec};">$10 @ 5X</strong></span>
+                    </div>
+                </div>""", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
