@@ -125,7 +125,10 @@ try:
     from conector_exchanges import binance_margin_account_info as _bam_info
     def obtener_datos_margin_account():
         try:
-            return _bam_info()
+            res = _bam_info()
+            if res is None:
+                return {"error": "API Binance no respondió o no hay claves"}
+            return res
         except Exception as _e_bam:
             return {"error": str(_e_bam)}
     def obtener_precio_actual(sym="BTCUSDT"):
