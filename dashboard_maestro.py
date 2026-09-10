@@ -2682,31 +2682,43 @@ with tab2:
 <span>⚡ <strong>Stoch %K:</strong> {act['stoch_k']:.1f} (RSI {act['rsi']:.1f})</span>
 <span>🌪️ <strong>ADX:</strong> {act['adx']:.1f} {'🟢 Fuerza' if act['adx']>=23 else '🔴 Lateral'}</span>
 </div>
-</div>
-<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
-<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px;">
-<div style="font-size:0.85rem; font-weight:800; color:#22c55e; border-bottom:1px solid rgba(34,197,94,0.2); padding-bottom:4px; margin-bottom:8px;">🟢 PLAN COMPRA (LONG)</div>
+</div>"""
+                    is_long = "LONG" in act["recom"]
+                    is_short = "SHORT" in act["recom"]
+                    
+                    l_html = f'''<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#22c55e; border-bottom:1px solid rgba(34,197,94,0.2); padding-bottom:4px; margin-bottom:8px;">🟢 PLAN RECOMENDADO (LONG)</div>
 <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
 🎯 <strong>Gatillo Entrada:</strong> <strong style="color:#f8fafc;">${act['long_trigger']:,.2f}</strong><br>
 🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${act['long_sl']:,.2f}</strong><br>
 🎯 <strong>TP1 (50% + BE):</strong> <strong style="color:#eab308;">${act['long_tp1']:,.2f}</strong><br>
 🏆 <strong>TP2 (R:R 1:3):</strong> <strong style="color:#22c55e;">${act['long_tp2']:,.2f}</strong>
 </div>
-</div>
-<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px;">
-<div style="font-size:0.85rem; font-weight:800; color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.2); padding-bottom:4px; margin-bottom:8px;">🔴 PLAN VENTA (SHORT)</div>
+</div>'''
+                    
+                    s_html = f'''<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.2); padding-bottom:4px; margin-bottom:8px;">🔴 PLAN RECOMENDADO (SHORT)</div>
 <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
 🎯 <strong>Gatillo Entrada:</strong> <strong style="color:#f8fafc;">${act['short_trigger']:,.2f}</strong><br>
 🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${act['short_sl']:,.2f}</strong><br>
 🎯 <strong>TP1 (50% + BE):</strong> <strong style="color:#eab308;">${act['short_tp1']:,.2f}</strong><br>
 🏆 <strong>TP2 (R:R 1:3):</strong> <strong style="color:#22c55e;">${act['short_tp2']:,.2f}</strong>
 </div>
-</div>
-</div>
+</div>'''
+
+                    if is_long:
+                        planes = f'<div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom:14px;">{l_html}</div>'
+                    elif is_short:
+                        planes = f'<div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom:14px;">{s_html}</div>'
+                    else:
+                        planes = f'<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">{l_html.replace("RECOMENDADO", "COMPRA")}{s_html.replace("RECOMENDADO", "VENTA")}</div>'
+
+                    card_html += planes + f'''
 <div style="font-size:0.78rem; color:#94a3b8; border-left:3px solid {card_border}; padding-left:8px; line-height:1.4;">
-💡 <strong>Táctica:</strong> {act['nota']}
+💡 <strong>Táctica:</strong> {act.get('nota', 'Neutro')}
 </div>
-</div>"""
+</div>'''
+
                     st.markdown(card_html, unsafe_allow_html=True)
 
     st.markdown("<br><hr style='border-color:#334155;'><br>", unsafe_allow_html=True)
@@ -4485,31 +4497,43 @@ with tab7:
 <span>⚡ <strong>RSI 1D:</strong> {item['rsi']} pts</span>
 <span>🌪️ <strong>ATR 1D:</strong> ${item['atr14']:,.2f} ({item['atr_pct']}%)</span>
 </div>
-</div>
-<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
-<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px;">
-<div style="font-size:0.85rem; font-weight:800; color:#22c55e; border-bottom:1px solid rgba(34,197,94,0.2); padding-bottom:4px; margin-bottom:8px;">🟢 PLAN COMPRA (LONG)</div>
+</div>"""
+                    is_long = "LONG" in item["recomendacion"]
+                    is_short = "SHORT" in item["recomendacion"]
+                    
+                    l_html = f'''<div style="background:rgba(34,197,94,0.08); border:1px solid rgba(34,197,94,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#22c55e; border-bottom:1px solid rgba(34,197,94,0.2); padding-bottom:4px; margin-bottom:8px;">🟢 PLAN RECOMENDADO (LONG)</div>
 <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
 🎯 <strong>Entrada:</strong> <strong style="color:#f8fafc;">${e_long:,.2f}</strong><br>
 🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${sl_long:,.2f}</strong><br>
 🎯 <strong>TP1:</strong> <strong style="color:#eab308;">${tp1_long:,.2f}</strong><br>
 🏆 <strong>TP2 (1:3):</strong> <strong style="color:#22c55e;">${tp2_long:,.2f}</strong>
 </div>
-</div>
-<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px;">
-<div style="font-size:0.85rem; font-weight:800; color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.2); padding-bottom:4px; margin-bottom:8px;">🔴 PLAN VENTA (SHORT)</div>
+</div>'''
+                    
+                    s_html = f'''<div style="background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.3); border-radius:10px; padding:12px;">
+<div style="font-size:0.85rem; font-weight:800; color:#ef4444; border-bottom:1px solid rgba(239,68,68,0.2); padding-bottom:4px; margin-bottom:8px;">🔴 PLAN RECOMENDADO (SHORT)</div>
 <div style="font-size:0.8rem; color:#cbd5e1; line-height:1.6;">
 🎯 <strong>Entrada:</strong> <strong style="color:#f8fafc;">${e_short:,.2f}</strong><br>
 🛑 <strong>Stop Loss:</strong> <strong style="color:#ef4444;">${sl_short:,.2f}</strong><br>
 🎯 <strong>TP1:</strong> <strong style="color:#eab308;">${tp1_short:,.2f}</strong><br>
 🏆 <strong>TP2 (1:3):</strong> <strong style="color:#22c55e;">${tp2_short:,.2f}</strong>
 </div>
-</div>
-</div>
+</div>'''
+
+                    if is_long:
+                        planes = f'<div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom:14px;">{l_html}</div>'
+                    elif is_short:
+                        planes = f'<div style="display:grid; grid-template-columns: 1fr; gap:12px; margin-bottom:14px;">{s_html}</div>'
+                    else:
+                        planes = f'<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">{l_html.replace("RECOMENDADO", "COMPRA")}{s_html.replace("RECOMENDADO", "VENTA")}</div>'
+
+                    card_html += planes + f'''
 <div style="font-size:0.78rem; color:#94a3b8; border-left:3px solid {card_border}; padding-left:8px; line-height:1.4;">
 💡 <strong>Estatus de Flota:</strong> {item['adopcion']}
 </div>
-</div>"""
+</div>'''
+
                     st.markdown(card_html, unsafe_allow_html=True)
 
             st.markdown("---")
@@ -4659,41 +4683,37 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
                 _t1_f = f"{_tp1:,.4f}" if _tp1 < 1 else f"{_tp1:,.2f}"
                 _t2_f = f"{_tp2:,.4f}" if _tp2 < 1 else f"{_tp2:,.2f}"
 
-                st.markdown(f"""
-                <div style="background:rgba(15,23,42,0.9); border:1px solid {_bc}; border-radius:12px; padding:15px; margin-bottom:15px;">
-                    <div style="font-size:0.75rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">{_ec.get('tipo', 'CRIPTO')}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">{_ec.get('sym')}</span>
-                        <span style="background:{_bc}33; color:{_bc}; border:1px solid {_bc}; font-size:0.65rem; font-weight:900; padding:3px 8px; border-radius:6px;">{_label}</span>
-                    </div>
-                    <div style="font-size:1.7rem; font-weight:900; color:#f8fafc; margin:4px 0;">${_px_f}</div>
-                    
-                    <div style="display:flex; justify-content:space-between; border-top:1px solid #334155; border-bottom:1px solid #334155; padding:8px 0; margin:10px 0;">
-                        <div style="text-align:center;">
-                            <div style="font-size:0.65rem; color:#cbd5e1;">SCORE (0-100)</div>
-                            <div style="font-size:0.95rem; font-weight:900; color:{_bc};">{_sc}/100</div>
-                        </div>
-                        <div style="text-align:center; border-left:1px solid #334155; padding-left:10px;">
-                            <div style="font-size:0.65rem; color:#cbd5e1;">RSI 4H</div>
-                            <div style="font-size:0.95rem; font-weight:900; color:#f8fafc;">{_rsi4:.1f}</div>
-                        </div>
-                        <div style="text-align:center; border-left:1px solid #334155; padding-left:10px;">
-                            <div style="font-size:0.65rem; color:#cbd5e1;">MACD</div>
-                            <div style="font-size:0.85rem; font-weight:900; color:#f8fafc;">{_macd}</div>
-                        </div>
-                    </div>
-                    
-                    <div style="font-size:0.85rem; font-weight:800; color:#f8fafc; margin-bottom:8px;">{_fuerza}</div>
-                    
-                    <div style="background:rgba(0,0,0,0.4); border-radius:8px; padding:10px; font-size:0.85rem;">
-                        <div style="font-weight:800; color:{_bc}; margin-bottom:6px;">{_plan}</div>
-                        <div style="color:#f8fafc;">• <strong>Entrada {_dir}:</strong> <span style="color:#38bdf8;">${_en_f}</span></div>
-                        <div style="color:#f8fafc;">• <strong>Stop Loss (Inviolable):</strong> <span style="color:#ef4444;">${_sl_f}</span> (Riesgo: {_r_pct:+.1f}%)</div>
-                        <div style="color:#f8fafc;">• <strong>Take Profit 1:</strong> <span style="color:#22c55e;">${_t1_f}</span></div>
-                        <div style="color:#f8fafc;">• <strong>Take Profit 2:</strong> <span style="color:#22c55e;">${_t2_f}</span></div>
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
+                html_str = f"""<div style="background:rgba(15,23,42,0.9); border:1px solid {_bc}; border-radius:12px; padding:15px; margin-bottom:15px;">
+<div style="font-size:0.75rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">{_ec.get('tipo', 'CRIPTO')}</div>
+<div style="display:flex; justify-content:space-between; align-items:center;">
+<span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">{_ec.get('sym')}</span>
+<span style="background:{_bc}33; color:{_bc}; border:1px solid {_bc}; font-size:0.65rem; font-weight:900; padding:3px 8px; border-radius:6px;">{_label}</span>
+</div>
+<div style="font-size:1.7rem; font-weight:900; color:#f8fafc; margin:4px 0;">${_px_f}</div>
+<div style="display:flex; justify-content:space-between; border-top:1px solid #334155; border-bottom:1px solid #334155; padding:8px 0; margin:10px 0;">
+<div style="text-align:center;">
+<div style="font-size:0.65rem; color:#cbd5e1;">SCORE (0-100)</div>
+<div style="font-size:0.95rem; font-weight:900; color:{_bc};">{_sc}/100</div>
+</div>
+<div style="text-align:center; border-left:1px solid #334155; padding-left:10px;">
+<div style="font-size:0.65rem; color:#cbd5e1;">RSI 4H</div>
+<div style="font-size:0.95rem; font-weight:900; color:#f8fafc;">{_rsi4:.1f}</div>
+</div>
+<div style="text-align:center; border-left:1px solid #334155; padding-left:10px;">
+<div style="font-size:0.65rem; color:#cbd5e1;">MACD</div>
+<div style="font-size:0.85rem; font-weight:900; color:#f8fafc;">{_macd}</div>
+</div>
+</div>
+<div style="font-size:0.85rem; font-weight:800; color:#f8fafc; margin-bottom:8px;">{_fuerza}</div>
+<div style="background:rgba(0,0,0,0.4); border-radius:8px; padding:10px; font-size:0.85rem;">
+<div style="font-weight:800; color:{_bc}; margin-bottom:6px;">{_plan}</div>
+<div style="color:#f8fafc;">• <strong>Entrada {_dir}:</strong> <span style="color:#38bdf8;">${_en_f}</span></div>
+<div style="color:#f8fafc;">• <strong>Stop Loss (Inviolable):</strong> <span style="color:#ef4444;">${_sl_f}</span> (Riesgo: {_r_pct:+.1f}%)</div>
+<div style="color:#f8fafc;">• <strong>Take Profit 1:</strong> <span style="color:#22c55e;">${_t1_f}</span></div>
+<div style="color:#f8fafc;">• <strong>Take Profit 2:</strong> <span style="color:#22c55e;">${_t2_f}</span></div>
+</div>
+</div>"""
+                st.markdown(html_str, unsafe_allow_html=True)
                 
                 # 🚀 CUARTEL V4: Ejecución Dinámica
                 with st.expander(f"⚙️ Panel de Ejecución Directa — {_ec.get('sym')}"):
@@ -4778,7 +4798,15 @@ with tab9:
         card_border = "#22c55e" if es_real else "#38bdf8"
         badge_html = "<span style='background:rgba(34,197,94,0.2); color:#22c55e; border:1px solid #22c55e; padding:3px 8px; border-radius:6px; font-weight:800; font-size:0.75rem;'>🟢 REAL BINGX</span>" if es_real else "<span style='background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8; padding:3px 8px; border-radius:6px; font-weight:800; font-size:0.75rem;'>👻 MODO FANTASMA</span>"
 
-        st.markdown(f"""
+
+        e_str = f"{entry_px:,.4f}" if entry_px < 1 else f"{entry_px:,.2f}"
+        l_str = f"{px_live:,.4f}" if px_live < 1 else f"{px_live:,.2f}"
+        tp_px = pos.get('tp_px', 0)
+        tp_str = f"{tp_px:,.4f}" if tp_px < 1 else f"{tp_px:,.2f}"
+        sl_px = pos.get('sl_px', 0)
+        sl_str = f"{sl_px:,.4f}" if sl_px < 1 else f"{sl_px:,.2f}"
+        
+        st.markdown(f'''
         <div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.92)); border: 2px solid {card_border}; border-radius: 16px; padding: 18px; margin-bottom: 16px; box-shadow: 0 6px 20px rgba(0,0,0,0.5);">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
                 <div>
@@ -4788,15 +4816,16 @@ with tab9:
                 <span style="font-size:0.82rem; color:#94a3b8; font-weight:700;">Ranura #{idx+1}/3</span>
             </div>
             <div style="background:rgba(30,41,59,0.7); border-radius:10px; padding:10px; margin-bottom:12px; font-size:0.88rem; color:#cbd5e1; line-height:1.6;">
-                • <b>Entrada:</b> ${entry_px:,.4f if entry_px<1 else f'{entry_px:,.2f}'} | <b>Precio Actual:</b> ${px_live:,.4f if px_live<1 else f'{px_live:,.2f}'}<br>
-                • <b>🎯 Take Profit:</b> ${pos.get('tp_px', 0):,.4f if pos.get('tp_px',0)<1 else f"{pos.get('tp_px', 0):,.2f}"}<br>
-                • <b>🛑 Stop Loss:</b> ${pos.get('sl_px', 0):,.4f if pos.get('sl_px',0)<1 else f"{pos.get('sl_px', 0):,.2f}"}<br>
+                • <b>Entrada:</b> ${e_str} | <b>Precio Actual:</b> ${l_str}<br>
+                • <b>🎯 Take Profit:</b> ${tp_str}<br>
+                • <b>🛑 Stop Loss:</b> ${sl_str}<br>
                 • <b>Lote Nominal:</b> {qty} contratos ($10 USD @ 10X)<br>
                 • <b>PnL en Vivo:</b> <strong style="color:{color_pnl}; font-size:1.0rem;">{signo}${pnl_usd:,.2f} USD ({signo}{pnl_pct:.2f}%)</strong><br>
                 • <b>Tiempo Activo:</b> {horas:.1f} horas
             </div>
         </div>
-        """, unsafe_allow_html=True)
+        ''', unsafe_allow_html=True)
+
 
         c_act1, c_act2 = st.columns(2)
         with c_act1:
