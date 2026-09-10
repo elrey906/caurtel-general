@@ -3052,19 +3052,23 @@ with tab3:
     st.markdown("---")
     st.subheader("🌐 Telemetría en Vivo de BingX (Cuenta Real & Operaciones)")
     
+    # v4.0: Telemetría Directa de BingX (Reemplaza a Cerebro5/6)
     bingx_data = {}
-    for fpath in [
-        os.path.join(BASE_DIR, "CEREBRO5", "estado_cerebro5.json"),
-        os.path.join(BASE_DIR, "CEREBRO6", "estado_cerebro6.json")
-    ]:
-        if os.path.exists(fpath):
-            try:
-                st_tmp = cargar_json(fpath, {})
-                bloq_tmp = st_tmp.get("bloqueo_anti_desmadre", {})
-                if bloq_tmp and "posiciones_bingx_live" in bloq_tmp:
-                    bingx_data = bloq_tmp
-                    break
-            except: pass
+    try:
+        from conector_exchanges import bingx_request as _bx_req
+        _bx_bal = _bx_req("GET", "/openApi/swap/v2/user/balance")
+        _bx_pos = _bx_req("GET", "/openApi/swap/v2/user/positions")
+        if _bx_bal and _bx_bal.get("code") == 0:
+            _b = _bx_bal["data"]["balance"]
+            bingx_data["equidad_actual"] = float(_b.get("equity", 0))
+            bingx_data["disponible_actual"] = float(_b.get("availableMargin", 0))
+            bingx_data["margen_usado"] = float(_b.get("usedMargin", 0))
+            bingx_data["pnl_flotante"] = float(_b.get("unrealizedProfit", 0))
+        if _bx_pos and _bx_pos.get("code") == 0:
+            bingx_data["posiciones_bingx_live"] = _bx_pos.get("data", [])
+    except Exception as e:
+        import streamlit as st
+        st.warning(f"Error cargando telemetría BingX: {e}")
             
     if bingx_data:
         eq_actual = clean_num(bingx_data.get("equidad_actual", 0.0))
@@ -3315,29 +3319,35 @@ with tab4:
     st.dataframe(pd.DataFrame(rows_mat), use_container_width=True, hide_index=True)
 
     st.markdown("---")
-    st.subheader("🔭 Proyeccion Dinamica Proximos Dias")
-    soporte_7d = telem["soporte_7d"]; rsi_4h = telem["rsi_4h"]
-    dist_s = ((btc_price - soporte_7d) / btc_price)*100
-    prob_a = 40 if rsi_4h > 65 else 60
-    ema9_t = m_h4.get("ema9", btc_price*1.01)
+    st.subheader("🔭 Proyección Dinámica Próximos Días (Cuartel v4)")
+    _v3_btc = next((x for x in st.session_state.get("v3_cache", []) if x["sym"] == "BTC"), None)
+    if _v3_btc and _v3_btc["precio"] > 0:
+        btc_px = _v3_btc["precio"]
+        soporte_7d = _v3_btc["sop_7d"]
+        rsi_4h = _v3_btc["rsi_4h"]
+        dist_s = ((btc_px - soporte_7d) / (btc_px+1e-9))*100
+        prob_a = 40 if rsi_4h > 65 else 60
+        ema55_t = _v3_btc["ema55"]
 
-    e1, e2 = st.columns(2)
-    with e1:
-        st.success(f"""
-**🟢 Escenario Alcista ({prob_a}% Probabilidad)**
-
-Rebote desde ${btc_price:,.0f} buscando EMA9 en ${ema9_t:,.0f} USDT.
-RSI 4H: {rsi_4h:.1f} — {'Sobrecompra, precaucion' if rsi_4h>70 else 'Terreno neutro-alcista'}.
-        """)
-    with e2:
-        liq = soporte_7d * 0.975
-        st.error(f"""
-**🔴 Escenario Bajista ({100-prob_a}% Probabilidad)**
-
-Si se pierde soporte 7D en ${soporte_7d:,.0f} → zona de liquidacion ${liq:,.0f} USDT.
-Distancia al soporte: {dist_s:.2f}%.
-        """)
-    st.info("💡 **Recomendacion:** Cerebros 1 y 2 en espera de confirmacion. Trifecta mantiene liquidez en cash hasta senal semanal.")
+        e1, e2 = st.columns(2)
+        with e1:
+            st.success(f"""
+    **🟢 Escenario Alcista ({prob_a}% Probabilidad)**
+    
+    Rebote desde ${btc_px:,.0f} buscando resistencia/EMA55 en ${ema55_t:,.0f} USDT.
+    RSI 4H: {rsi_4h:.1f} — {'Sobrecompra, precaucion' if rsi_4h>70 else 'Terreno neutro-alcista'}.
+            """)
+        with e2:
+            liq = soporte_7d * 0.975
+            st.error(f"""
+    **🔴 Escenario Bajista ({100-prob_a}% Probabilidad)**
+    
+    Si se pierde soporte 7D en ${soporte_7d:,.0f} → zona de liquidacion ${liq:,.0f} USDT.
+    Distancia al soporte: {dist_s:.2f}%.
+            """)
+        st.info("💡 **Recomendación Cuartel V4:** Evalúa los Fichas Tácticas en Pestañas Adyacentes.")
+    else:
+        st.info("⏳ Aguardando motor v3 para proyección dinámica...")
 
 # ══════════════════════════════════════════════════════════════════
 # TAB 6 — PANEL DE CONTROL & CONFIGURACIÓN DE BOTS
@@ -3425,6 +3435,7 @@ with tab6:
     # ── 1. MONITOR ANTI-DESMADRE EN TIEMPO REAL ──────────────────────────
     if binance_ok:
         m_level = margin_level if margin_level > 0 else 999.0
+        m_level_disp = f'{m_level:.2f}' if m_level < 900.0 else '∞ (Sin Deuda)'
         deuda_tot_usd = liability_btc * btc_price
         
         if m_level >= 2.0 or m_level == 999.0:
@@ -4599,89 +4610,117 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
     st.markdown("### 🎯 Fichas Tácticas Operativas (Planes de Trading en USD)")
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. TARJETAS DE TRADING QUIRÚRGICAS
-    elite_cols = st.columns(2)
-    for idx, asset in enumerate(elite_assets):
-        col_idx = idx % 2
-        with elite_cols[col_idx]:
-            p_val = asset["precio"]
-            p_fmt = f"${p_val:,.4f}" if p_val < 1.0 else (f"${p_val:,.2f}" if p_val < 1000.0 else f"${p_val:,.0f}")
-            ema9_fmt = f"${asset['ema9']:,.4f}" if asset['ema9'] < 1.0 else (f"${asset['ema9']:,.2f}" if asset['ema9'] < 1000.0 else f"${asset['ema9']:,.0f}")
-            ema21_fmt = f"${asset['ema21']:,.4f}" if asset['ema21'] < 1.0 else (f"${asset['ema21']:,.2f}" if asset['ema21'] < 1000.0 else f"${asset['ema21']:,.0f}")
-            ema55_fmt = f"${asset['ema55']:,.4f}" if asset['ema55'] < 1.0 else (f"${asset['ema55']:,.2f}" if asset['ema55'] < 1000.0 else f"${asset['ema55']:,.0f}")
-            
-            is_short = asset.get("direccion_tactica") == "SHORT" or asset["heat_score"] >= 70.0 or asset["rsi"] >= 65.0
-            card_border = "#ef4444" if is_short else "#38bdf8"
-            dir_badge = "🔴 OPORTUNIDAD SHORT EN TECHO" if is_short else "🟢 OPORTUNIDAD LONG EN SUELO"
-            dir_bg = "background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid #ef4444;" if is_short else "background:rgba(56,189,248,0.2); color:#38bdf8; border:1px solid #38bdf8;"
-            c_score = asset.get("conviccion_score", asset["heat_score"])
+    # 2. TARJETAS DE TRADING QUIRÚRGICAS v4.0 (Nivel Institucional)
+    _v3_all  = st.session_state.get("v3_cache", [])
+    if not _v3_all:
+        st.info("Aguardando motor Cuartel v4...")
+    else:
+        elite_cols = st.columns(2)
+        # Mostrar los 8 mejores activos
+        for idx, _ec in enumerate(_v3_all[:8]):
+            col_idx = idx % 2
+            with elite_cols[col_idx]:
+                _is_long = "LONG" in _ec.get("recom", "")
+                _px    = _ec.get("precio", 0.0)
+                if _px <= 0: continue
+                _sc    = _ec.get("score", 50)
+                _bc    = "#22c55e" if _is_long else "#ef4444"
+                _label = "🟢 OPORTUNIDAD LONG EN SUELO" if _is_long else "🔴 OPORTUNIDAD SHORT EN TECHO"
+                
+                if _is_long:
+                    _entry = _ec.get("long_trigger", _px)
+                    _sl    = _ec.get("long_sl", _px*0.95)
+                    _tp1   = _ec.get("long_tp1", _px*1.02)
+                    _tp2   = _ec.get("long_tp2", _px*1.05)
+                    _plan  = "🟢 ESTRATEGIA OPERATIVA: LONG EN PISO"
+                    _dir   = "LONG"
+                else:
+                    _entry = _ec.get("short_trigger", _px)
+                    _sl    = _ec.get("short_sl", _px*1.05)
+                    _tp1   = _ec.get("short_tp1", _px*0.98)
+                    _tp2   = _ec.get("short_tp2", _px*0.95)
+                    _plan  = "🔴 ESTRATEGIA OPERATIVA: SHORT EN TECHO"
+                    _dir   = "SHORT"
+                
+                _r_pct = (_sl - _entry)/_entry * 100 if _entry > 0 else 0
+                _rsi1  = _ec.get("rsi_1h", 50)
+                _rsi4  = _ec.get("rsi_4h", 50)
+                _macd  = _ec.get("macd_estado", "NEUTRO")
+                
+                # Evaluar Fuerza de Timeframes
+                _fuerza = "🔴 Fuerza BAJISTA (4H/1H alineados a la baja)"
+                if _rsi4 < 45 and _rsi1 < 40: _fuerza = "🟢 Fuerza ALCISTA (Suelo 4H y 1H)"
+                elif _rsi4 > 60 and _rsi1 > 65: _fuerza = "🔴 Fuerza BAJISTA (Techo 4H y 1H)"
+                elif _is_long: _fuerza = "🟢 Fuerza ALCISTA Táctica (Rebote 1H)"
+                
+                _px_f = f"{_px:,.4f}" if _px < 1 else f"{_px:,.2f}"
+                _en_f = f"{_entry:,.4f}" if _entry < 1 else f"{_entry:,.2f}"
+                _sl_f = f"{_sl:,.4f}" if _sl < 1 else f"{_sl:,.2f}"
+                _t1_f = f"{_tp1:,.4f}" if _tp1 < 1 else f"{_tp1:,.2f}"
+                _t2_f = f"{_tp2:,.4f}" if _tp2 < 1 else f"{_tp2:,.2f}"
 
-            p_val = clean_num(asset.get("precio", 0.0), 0.0)
-            if p_val <= 0:
-                p_val = max(clean_num(asset.get("ema9", 1.0), 1.0), 0.0001)
-            atr_v = max(clean_num(asset.get('atr14', 0.05 * p_val), 0.05 * p_val), 0.0001)
-            ema9_v = clean_num(asset.get('ema9', p_val), p_val)
-
-            if is_short:
-                entry_p = round(max(p_val, (p_val + ema9_v) / 2.0), 4 if p_val < 1.0 else 2)
-                sl_p = round(entry_p + (1.5 * atr_v), 4 if p_val < 1.0 else 2)
-                tp1_p = round(max(0.0001, entry_p - (2.0 * atr_v)), 4 if p_val < 1.0 else 2)
-                tp2_p = round(max(0.0001, entry_p - (3.8 * atr_v)), 4 if p_val < 1.0 else 2)
-                diff_sl = max(0.0001, sl_p - entry_p)
-                rr = round((entry_p - tp1_p) / diff_sl, 2)
-                plan_title = "🔴 ESTRATEGIA OPERATIVA: SHORT EN TECHO"
-            else:
-                entry_p = round(min(p_val, (p_val + ema9_v) / 2.0), 4 if p_val < 1.0 else 2)
-                sl_p = round(max(0.0001, entry_p - (1.5 * atr_v)), 4 if p_val < 1.0 else 2)
-                tp1_p = round(entry_p + (2.0 * atr_v), 4 if p_val < 1.0 else 2)
-                tp2_p = round(entry_p + (3.8 * atr_v), 4 if p_val < 1.0 else 2)
-                diff_sl = max(0.0001, entry_p - sl_p)
-                rr = round((tp1_p - entry_p) / diff_sl, 2)
-                plan_title = "🟢 ESTRATEGIA OPERATIVA: LONG EN PISO (COMPRA EN DESCUENTO)"
-
-            riesgo_pct = (abs(entry_p - sl_p) / max(0.0001, entry_p)) * 100.0
-            def _f_px(v):
-                return f"${v:,.4f}" if v < 1.0 else f"${v:,.2f}"
-
-            st.markdown(f"""<div style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.92)); border: 2px solid {card_border}; border-radius: 18px; padding: 22px; margin-bottom: 20px; box-shadow: 0 8px 25px rgba(0,0,0,0.6);">
-<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-<div>
-<span style="{asset['badge_css']} padding:3px 10px; border-radius:12px; font-size:0.75rem; font-weight:800;">{asset['categoria']}</span>
-<h2 style="margin:6px 0 0 0; font-size:1.6rem; font-weight:900; color:#f8fafc;">{asset['nombre']} <span style="font-size:0.95rem; color:#94a3b8;">({asset['symbol']})</span></h2>
-</div>
-<div style="text-align:right;">
-<span style="{dir_bg} padding:5px 12px; border-radius:16px; font-size:0.8rem; font-weight:800;">{dir_badge}</span>
-<div style="font-size:1.8rem; font-weight:900; color:#ffffff; margin-top:4px;">{p_fmt}</div>
-</div>
-</div>
-
-<div style="background:rgba(30,41,59,0.8); border-radius:12px; padding:12px; margin-bottom:14px; display:flex; justify-content:space-around; text-align:center;">
-<div>
-<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">SCORE CONVICCIÓN QUANT</div>
-<div style="font-size:1.3rem; font-weight:900; color:{card_border};">{c_score}/100</div>
-</div>
-<div>
-<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">RSI DIARIO</div>
-<div style="font-size:1.3rem; font-weight:900; color:#f8fafc;">{asset['rsi']} pts</div>
-</div>
-<div>
-<div style="font-size:0.72rem; color:#94a3b8; font-weight:800;">DIST. EMA 55</div>
-<div style="font-size:1.3rem; font-weight:900; color:{card_border};">{asset['dist_ema55_pct']:+.1f}%</div>
-</div>
-</div>
-
-<div style="background:rgba(15,23,42,0.9); border:1px solid #334155; border-radius:12px; padding:14px;">
-<div style="font-size:0.82rem; font-weight:800; color:{card_border}; margin-bottom:6px;">{plan_title}</div>
-<div style="font-size:0.88rem; color:#cbd5e1; line-height:1.6;">
-• <strong>Entrada Sugerida:</strong> {_f_px(entry_p)}<br>
-• <strong>Stop Loss (1.5 ATR):</strong> {_f_px(sl_p)} (Riesgo: -{riesgo_pct:.1f}%)<br>
-• <strong>Take Profit 1:</strong> {_f_px(tp1_p)}<br>
-• <strong>Take Profit 2:</strong> {_f_px(tp2_p)}<br>
-• <strong>Ratio Riesgo/Beneficio:</strong> <strong style="color:{card_border};">1 : {rr}</strong>
-</div>
-</div>
-</div>""", unsafe_allow_html=True)
-
+                st.markdown(f"""
+                <div style="background:rgba(15,23,42,0.9); border:1px solid {_bc}; border-radius:12px; padding:15px; margin-bottom:15px;">
+                    <div style="font-size:0.75rem; color:#94a3b8; font-weight:800; text-transform:uppercase;">{_ec.get('tipo', 'CRIPTO')}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-weight:900; color:#f8fafc; font-size:1.15rem;">{_ec.get('sym')}</span>
+                        <span style="background:{_bc}33; color:{_bc}; border:1px solid {_bc}; font-size:0.65rem; font-weight:900; padding:3px 8px; border-radius:6px;">{_label}</span>
+                    </div>
+                    <div style="font-size:1.7rem; font-weight:900; color:#f8fafc; margin:4px 0;">${_px_f}</div>
+                    
+                    <div style="display:flex; justify-content:space-between; border-top:1px solid #334155; border-bottom:1px solid #334155; padding:8px 0; margin:10px 0;">
+                        <div style="text-align:center;">
+                            <div style="font-size:0.65rem; color:#cbd5e1;">SCORE (0-100)</div>
+                            <div style="font-size:0.95rem; font-weight:900; color:{_bc};">{_sc}/100</div>
+                        </div>
+                        <div style="text-align:center; border-left:1px solid #334155; padding-left:10px;">
+                            <div style="font-size:0.65rem; color:#cbd5e1;">RSI 4H</div>
+                            <div style="font-size:0.95rem; font-weight:900; color:#f8fafc;">{_rsi4:.1f}</div>
+                        </div>
+                        <div style="text-align:center; border-left:1px solid #334155; padding-left:10px;">
+                            <div style="font-size:0.65rem; color:#cbd5e1;">MACD</div>
+                            <div style="font-size:0.85rem; font-weight:900; color:#f8fafc;">{_macd}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="font-size:0.85rem; font-weight:800; color:#f8fafc; margin-bottom:8px;">{_fuerza}</div>
+                    
+                    <div style="background:rgba(0,0,0,0.4); border-radius:8px; padding:10px; font-size:0.85rem;">
+                        <div style="font-weight:800; color:{_bc}; margin-bottom:6px;">{_plan}</div>
+                        <div style="color:#f8fafc;">• <strong>Entrada {_dir}:</strong> <span style="color:#38bdf8;">${_en_f}</span></div>
+                        <div style="color:#f8fafc;">• <strong>Stop Loss (Inviolable):</strong> <span style="color:#ef4444;">${_sl_f}</span> (Riesgo: {_r_pct:+.1f}%)</div>
+                        <div style="color:#f8fafc;">• <strong>Take Profit 1:</strong> <span style="color:#22c55e;">${_t1_f}</span></div>
+                        <div style="color:#f8fafc;">• <strong>Take Profit 2:</strong> <span style="color:#22c55e;">${_t2_f}</span></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # 🚀 CUARTEL V4: Ejecución Dinámica
+                with st.expander(f"⚙️ Panel de Ejecución Directa — {_ec.get('sym')}"):
+                    cp1, cp2, cp3 = st.columns([1, 1, 2])
+                    _p_lev = cp1.number_input("Palanca", min_value=1, max_value=50, value=10, key=f"lev_{_ec.get('sym')}")
+                    _p_mrg = cp2.number_input("Margen $", min_value=5.0, max_value=1000.0, value=20.0, step=5.0, key=f"mrg_{_ec.get('sym')}")
+                    
+                    cp3.markdown("<br>", unsafe_allow_html=True)
+                    if cp3.button(f"⚡ Ejecutar {_dir}", key=f"btn_exec_{_ec.get('sym')}", use_container_width=True):
+                        # Evitar dependencias cíclicas y re-importar dinamicamente
+                        import sys
+                        _auto_path = os.path.join(BASE_DIR, "AUTONOMO")
+                        if _auto_path not in sys.path:
+                            sys.path.insert(0, _auto_path)
+                        from conector_exchanges import bingx_ejecutar_promocion_real
+                        
+                        _bingx_sym = _ec.get("bingx", f"{_ec.get('sym')}-USDT")
+                        _qty = round((_p_mrg * _p_lev) / _px, 4)
+                        
+                        try:
+                            res = bingx_ejecutar_promocion_real(_ec.get('sym'), _bingx_sym, _dir, _qty, _tp1, _sl, leverage=_p_lev)
+                            if res and res.get("code") == 0:
+                                st.success(f"✅ ¡Orden Enviada Exitosamente a BingX! PnL Activo.")
+                            else:
+                                st.error(f"❌ Fallo al Enviar Orden: {res}")
+                        except Exception as ex_exec:
+                            st.error(f"❌ Error Interno: {ex_exec}")
     st.markdown("---")
     st.caption("*Panel de Activos de Élite (Score ≥ 88 Pts) · Cazador PRO · Puerto 8500*")
 

@@ -14,7 +14,17 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+import sys as _sys, os as _os
+_bam_path = _os.path.dirname(_os.path.abspath(__file__))
+if _bam_path not in _sys.path:
+    _sys.path.insert(0, _bam_path)
+from conector_exchanges import BINGX_KEY
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+    "X-BX-APIKEY": BINGX_KEY if BINGX_KEY else ""
+}
+
 
 ACTIVOS = [
     {"sym":"BTC",  "bingx":"BTC-USDT",           "binance":"BTCUSDT", "yahoo":None,    "tipo":"CRIPTO",  "exchange":"Binance Cross Margin 5X"},

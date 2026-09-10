@@ -1,6 +1,6 @@
 {
-  "timestamp": 1788994601.4596744,
-  "fecha_str": "2026-09-09 22:56:41 UTC",
+  "timestamp": 1789014205.8472948,
+  "fecha_str": "2026-09-10 04:23:25 UTC",
   "dxy": {
     "valor": 99.2,
     "estado": "DÓLAR DÉBIL (VIENTO A FAVOR)",
@@ -21,14 +21,14 @@
     "cpi": {
       "nombre": "🇺🇸 Publicación IPC / Inflación EE.UU.",
       "fecha": "11 de Septiembre de 2026 (08:30 ET)",
-      "horas_restantes": 37,
-      "texto_restante": "1d 13h"
+      "horas_restantes": 32,
+      "texto_restante": "1d 8h"
     },
     "fomc": {
       "nombre": "🏛️ Decisión de Tipos de Interés FOMC (Fed)",
       "fecha": "16 de Septiembre de 2026 (14:00 ET)",
-      "horas_restantes": 163,
-      "texto_restante": "6d 19h",
+      "horas_restantes": 157,
+      "texto_restante": "6d 13h",
       "probabilidad_pausa": "68% (Mantener 3.50% - 3.75%)",
       "probabilidad_subida": "22% (+25 pb)",
       "probabilidad_bajada": "10% (-25 pb)"

@@ -25,6 +25,32 @@
             "pnl_binance_usd": 0.0,
             "pnl_bingx_usd": 0.0,
             "meta_alcanzada": false
+        },
+        {
+            "fecha": "2026-09-09",
+            "binance_usd": 267.76,
+            "bingx_usd": 550.0,
+            "total_usd": 817.76,
+            "total_inicio_dia": 817.76,
+            "target_1pct_usd": 825.94,
+            "pnl_diario_usd": 0.0,
+            "pnl_diario_pct": 0.0,
+            "pnl_binance_usd": 0.0,
+            "pnl_bingx_usd": 0.0,
+            "meta_alcanzada": false
+        },
+        {
+            "fecha": "2026-09-10",
+            "binance_usd": 267.76,
+            "bingx_usd": 550.0,
+            "total_usd": 817.76,
+            "total_inicio_dia": 817.76,
+            "target_1pct_usd": 825.94,
+            "pnl_diario_usd": 0.0,
+            "pnl_diario_pct": 0.0,
+            "pnl_binance_usd": 0.0,
+            "pnl_bingx_usd": 0.0,
+            "meta_alcanzada": false
         }
     ]
 }

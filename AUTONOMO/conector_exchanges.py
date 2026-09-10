@@ -107,7 +107,7 @@ def bingx_establecer_apalancamiento(bingx_sym, leverage=10, side="LONG"):
     }
     return bingx_request("POST", "/openApi/swap/v2/trade/leverage", params)
 
-def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id, es_promocion_manual=False):
+def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id, es_promocion_manual=False, tp_px=0, sl_px=0):
     """
     Abre posición a mercado en BingX en Modo Cobertura con clientOrderId determinista.
     es_promocion_manual: True si fue ordenada explícitamente por el usuario desde la UI.
@@ -128,6 +128,17 @@ def bingx_abrir_posicion_mercado(bingx_sym, side, qty, client_order_id, es_promo
         "quantity": float(qty),
         "clientOrderID": client_order_id
     }
+    if tp_px > 0 or sl_px > 0:
+        import json
+        tpsl = {}
+        if tp_px > 0:
+            tpsl["takeProfit"] = {"type": "TAKE_PROFIT_MARKET", "stopPrice": float(tp_px), "workingType": "MARK_PRICE"}
+        if sl_px > 0:
+            tpsl["stopLoss"] = {"type": "STOP_MARKET", "stopPrice": float(sl_px), "workingType": "MARK_PRICE"}
+        # BingX requires this as string depending on endpoint or just direct properties in v2.
+        if tp_px > 0: params["takeProfit"] = json.dumps(tpsl["takeProfit"])
+        if sl_px > 0: params["stopLoss"] = json.dumps(tpsl["stopLoss"])
+        
     return bingx_request("POST", "/openApi/swap/v2/trade/order", params)
 
 def bingx_cerrar_posicion_mercado(bingx_sym, pos_side, qty, client_order_id=None):
@@ -195,7 +206,7 @@ def bingx_ejecutar_promocion_real(sym, bingx_sym, side, qty, tp_px, sl_px, lever
 
     # 3. Disparar orden a mercado real
     cid = f"PROMO_REAL_{sym}_{int(time.time())}"
-    r_ord = bingx_abrir_posicion_mercado(bingx_sym, side, qty, cid, es_promocion_manual=True)
+    r_ord = bingx_abrir_posicion_mercado(bingx_sym, side, qty, cid, es_promocion_manual=True, tp_px=tp_px, sl_px=sl_px)
 
     if r_ord.get("code") == 0:
         data_ord = r_ord.get("data", {}).get("order", {})
