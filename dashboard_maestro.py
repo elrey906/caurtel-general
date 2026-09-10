@@ -4622,7 +4622,7 @@ EMA55: {item['dist_ema55_pct']:+.1f}%
             with elite_cols[col_idx]:
                 _is_long = "LONG" in _ec.get("recom", "")
                 _px    = _ec.get("precio", 0.0)
-                if _px <= 0: continue
+                if _px <= 0: st.error(f"Error { _ec.get('sym') }: { _ec.get('error', 'Desc') }"); continue
                 _sc    = _ec.get("score", 50)
                 _bc    = "#22c55e" if _is_long else "#ef4444"
                 _label = "🟢 OPORTUNIDAD LONG EN SUELO" if _is_long else "🔴 OPORTUNIDAD SHORT EN TECHO"

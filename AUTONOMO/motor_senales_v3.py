@@ -43,26 +43,30 @@ ACTIVOS = [
 ]
 
 def get_price(act):
-    try:
-        r = requests.get("https://open-api.bingx.com/openApi/swap/v2/quote/price",
-                         params={"symbol":act["bingx"]},headers=HEADERS,timeout=5)
-        d = r.json()
-        if d.get("code")==0:
-            p = float(d["data"]["price"])
-            if p > 0: return p
-    except: pass
-    if act.get("binance"):
+    for base in ["https://open-api.bingx.com", "https://api-swap-rest.bingbon.pro"]:
         try:
-            r = requests.get("https://api.binance.com/api/v3/ticker/price",
-                             params={"symbol":act["binance"]},headers=HEADERS,timeout=5)
-            if r.status_code==200:
-                p = float(r.json()["price"])
+            r = requests.get(f"{base}/openApi/swap/v2/quote/price",
+                             params={"symbol":act["bingx"]},headers=HEADERS,timeout=3)
+            d = r.json()
+            if d.get("code")==0:
+                p = float(d["data"]["price"])
                 if p > 0: return p
         except: pass
+    
+    if act.get("binance"):
+        for b_base in ["https://api.binance.com", "https://api1.binance.com", "https://api3.binance.com"]:
+            try:
+                r = requests.get(f"{b_base}/api/v3/ticker/price",
+                                 params={"symbol":act["binance"]},headers={"User-Agent": "Mozilla/5.0"},timeout=3)
+                if r.status_code==200:
+                    p = float(r.json()["price"])
+                    if p > 0: return p
+            except: pass
+            
     if act.get("yahoo"):
         try:
             u = f"https://query1.finance.yahoo.com/v8/finance/chart/{act['yahoo']}?interval=1d&range=1d"
-            r = requests.get(u,headers=HEADERS,timeout=5)
+            r = requests.get(u,headers={"User-Agent": "Mozilla/5.0"},timeout=4)
             if r.status_code==200:
                 res = r.json().get("chart",{}).get("result",[])
                 if res:
@@ -72,34 +76,50 @@ def get_price(act):
     return 0.0
 
 def get_klines(act, limit=200):
-    # BingX klines v3
-    try:
-        r = requests.get("https://open-api.bingx.com/openApi/swap/v3/quote/klines",
-                         params={"symbol":act["bingx"],"interval":"1h","limit":limit},
-                         headers=HEADERS,timeout=8)
-        d = r.json()
-        if d.get("code")==0 and d.get("data"):
-            df = pd.DataFrame(d["data"])
-            for c in ["open","high","low","close","volume"]:
-                if c in df.columns:
-                    df[c] = pd.to_numeric(df[c],errors="coerce")
-            df.rename(columns={"volume":"vol","time":"ot"},inplace=True)
-            if "vol" not in df.columns: df["vol"] = 1000.0
-            df = df.dropna(subset=["close"]).sort_values("ot").reset_index(drop=True)
-            if len(df) >= 20: return df
-    except: pass
-    if act.get("binance"):
+    errores = []
+    # Intentar multiples endpoints de BingX
+    for base in ["https://open-api.bingx.com", "https://api-swap-rest.bingbon.pro"]:
         try:
-            r = requests.get("https://data-api.binance.vision/api/v3/klines",
-                             params={"symbol":act["binance"],"interval":"1h","limit":limit},
-                             headers=HEADERS,timeout=8)
-            if r.status_code==200:
-                df = pd.DataFrame(r.json(),columns=["ot","open","high","low","close","vol",
-                                                      "ct","qv","tr","tb","tq","ig"])
-                for c in ["open","high","low","close","vol"]:
-                    df[c] = df[c].astype(float)
-                return df.sort_values("ot").reset_index(drop=True)
-        except: pass
+            r = requests.get(f"{base}/openApi/swap/v3/quote/klines",
+                             params={"symbol":act["bingx"],"interval":"1h","limit":limit},
+                             headers=HEADERS,timeout=5)
+            d = r.json()
+            if d.get("code")==0 and d.get("data"):
+                df = pd.DataFrame(d["data"])
+                for c in ["open","high","low","close","volume"]:
+                    if c in df.columns:
+                        df[c] = pd.to_numeric(df[c],errors="coerce")
+                df.rename(columns={"volume":"vol","time":"ot"},inplace=True)
+                if "vol" not in df.columns: df["vol"] = 1000.0
+                df = df.dropna(subset=["close"]).sort_values("ot").reset_index(drop=True)
+                if len(df) >= 20: return df
+            else:
+                errores.append(f"{base} code {d.get('code')} msg {d.get('msg')}")
+        except Exception as e: 
+            errores.append(f"{base} except: {str(e)}")
+            pass
+        
+    # Fallback a Binance estandar
+    if act.get("binance"):
+        for b_base in ["https://api.binance.com", "https://api1.binance.com", "https://api3.binance.com"]:
+            try:
+                r = requests.get(f"{b_base}/api/v3/klines",
+                                 params={"symbol":act["binance"],"interval":"1h","limit":limit},
+                                 headers={"User-Agent": "Mozilla/5.0"},timeout=5)
+                if r.status_code==200:
+                    df = pd.DataFrame(r.json(),columns=["ot","open","high","low","close","vol",
+                                                          "ct","qv","tr","tb","tq","ig"])
+                    for c in ["open","high","low","close","vol"]:
+                        df[c] = df[c].astype(float)
+                    return df.sort_values("ot").reset_index(drop=True)
+                else:
+                    errores.append(f"{b_base} status {r.status_code}")
+            except Exception as e: 
+                errores.append(f"{b_base} except: {str(e)}")
+                pass
+            
+    # Si todo falla, guardamos los errores en un atributo global o algo para debugear
+    act["debug_err"] = str(errores)
     return pd.DataFrame()
 
 def rsi(s, p=14):
@@ -216,7 +236,11 @@ def analizar_activo(act):
     t0  = time.time()
     px  = get_price(act)
     df  = get_klines(act)
-    if not df.empty and len(df)>=20 and px>0:
+    if df.empty or len(df)<20 or px<=0:
+        return {**_fb(0),"sym":act["sym"],"tipo":act.get("tipo","CRIPTO"),
+                "exchange":act.get("exchange","BingX"),"precio":0.0,
+                "error": act.get("debug_err", f"px={px}, df_len={len(df)}") }
+    if True:
         rsi1 = rsi(df["close"],14)
         me   = macd_estado(df["close"])
         stk  = stoch(df)
