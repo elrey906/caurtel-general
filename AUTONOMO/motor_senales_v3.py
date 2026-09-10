@@ -77,35 +77,41 @@ def get_price(act):
 
 def get_klines(act, limit=200):
     errores = []
-    # Intentar multiples endpoints de BingX
+    UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    custom_headers = {**HEADERS, "User-Agent": UA}
+    
+    # 1. BingX
     for base in ["https://open-api.bingx.com", "https://api-swap-rest.bingbon.pro"]:
         try:
             r = requests.get(f"{base}/openApi/swap/v3/quote/klines",
                              params={"symbol":act["bingx"],"interval":"1h","limit":limit},
-                             headers=HEADERS,timeout=5)
-            d = r.json()
-            if d.get("code")==0 and d.get("data"):
-                df = pd.DataFrame(d["data"])
-                for c in ["open","high","low","close","volume"]:
-                    if c in df.columns:
-                        df[c] = pd.to_numeric(df[c],errors="coerce")
-                df.rename(columns={"volume":"vol","time":"ot"},inplace=True)
-                if "vol" not in df.columns: df["vol"] = 1000.0
-                df = df.dropna(subset=["close"]).sort_values("ot").reset_index(drop=True)
-                if len(df) >= 20: return df
+                             headers=custom_headers,timeout=4)
+            if r.status_code == 200:
+                d = r.json()
+                if d.get("code")==0 and d.get("data"):
+                    df = pd.DataFrame(d["data"])
+                    for c in ["open","high","low","close","volume"]:
+                        if c in df.columns:
+                            df[c] = pd.to_numeric(df[c],errors="coerce")
+                    df.rename(columns={"volume":"vol","time":"ot"},inplace=True)
+                    if "vol" not in df.columns: df["vol"] = 1000.0
+                    df = df.dropna(subset=["close"]).sort_values("ot").reset_index(drop=True)
+                    if len(df) >= 20: return df
+                else:
+                    errores.append(f"{base} code {d.get('code')} msg {d.get('msg')}")
             else:
-                errores.append(f"{base} code {d.get('code')} msg {d.get('msg')}")
+                errores.append(f"{base} HTTP {r.status_code}")
         except Exception as e: 
-            errores.append(f"{base} except: {str(e)}")
+            errores.append(f"{base} ex: {str(e)[:30]}")
             pass
         
-    # Fallback a Binance estandar
+    # 2. Binance Vision (Anti-403)
     if act.get("binance"):
-        for b_base in ["https://api.binance.com", "https://api1.binance.com", "https://api3.binance.com"]:
+        for b_base in ["https://data-api.binance.vision", "https://api.binance.com"]:
             try:
                 r = requests.get(f"{b_base}/api/v3/klines",
                                  params={"symbol":act["binance"],"interval":"1h","limit":limit},
-                                 headers={"User-Agent": "Mozilla/5.0"},timeout=5)
+                                 headers={"User-Agent": UA},timeout=4)
                 if r.status_code==200:
                     df = pd.DataFrame(r.json(),columns=["ot","open","high","low","close","vol",
                                                           "ct","qv","tr","tb","tq","ig"])
@@ -113,13 +119,39 @@ def get_klines(act, limit=200):
                         df[c] = df[c].astype(float)
                     return df.sort_values("ot").reset_index(drop=True)
                 else:
-                    errores.append(f"{b_base} status {r.status_code}")
+                    errores.append(f"{b_base} HTTP {r.status_code}")
             except Exception as e: 
-                errores.append(f"{b_base} except: {str(e)}")
+                errores.append(f"{b_base} ex: {str(e)[:30]}")
                 pass
+                
+    # 3. Yahoo Finance Fallback (Especial para acciones y ETFs)
+    if act.get("yahoo"):
+        try:
+            u = f"https://query1.finance.yahoo.com/v8/finance/chart/{act['yahoo']}?interval=1h&range=14d"
+            r = requests.get(u, headers={"User-Agent": UA}, timeout=4)
+            if r.status_code == 200:
+                res = r.json().get("chart",{}).get("result",[])
+                if res:
+                    timestamps = res[0].get("timestamp", [])
+                    quote = res[0].get("indicators", {}).get("quote", [{}])[0]
+                    if timestamps and quote:
+                        df = pd.DataFrame({
+                            "ot": [ts * 1000 for ts in timestamps],
+                            "open": quote.get("open", []),
+                            "high": quote.get("high", []),
+                            "low": quote.get("low", []),
+                            "close": quote.get("close", []),
+                            "vol": quote.get("volume", [])
+                        })
+                        df = df.dropna(subset=["close"]).sort_values("ot").reset_index(drop=True)
+                        if len(df) >= 20: return df
+            else:
+                errores.append(f"Yahoo HTTP {r.status_code}")
+        except Exception as e:
+            errores.append(f"Yahoo ex: {str(e)[:30]}")
             
     # Si todo falla, guardamos los errores en un atributo global o algo para debugear
-    act["debug_err"] = str(errores)
+    act["debug_err"] = " | ".join(errores)
     return pd.DataFrame()
 
 def rsi(s, p=14):
